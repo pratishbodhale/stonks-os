@@ -1,0 +1,6 @@
+kiteconnect
+pymongo
+playwright
+requests
+selenium
+undetected-chromedriver
