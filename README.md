@@ -57,37 +57,90 @@ Automated scraper for downloading corporate filings and announcements from NSE I
 **Why this tool?**
 - **Bot detection bypass** - Uses undetected-chromedriver to reliably access NSE India
 - **Automated downloads** - Automatically searches for company and downloads announcement CSV
+- **Docker support** - True headless mode via Docker container
+- **Cross-platform** - Works on macOS, Linux, Windows
 - **Simple CLI** - Just provide the ticker symbol and get the data
 - **Error handling** - Takes screenshots on errors for debugging
 
 **How it works:**
-1. Launches Chrome browser (visible or headless)
+1. Launches Chrome browser in a virtual display (Docker) or visible window (local)
 2. Navigates to NSE India corporate filings page
 3. Searches for the specified ticker symbol in the autocomplete
 4. Clicks download button to get CSV file with all announcements
 5. Saves CSV to `./downloads/` directory
 
-**Usage:**
+#### Quick Start (Docker - Recommended)
+
+Docker provides true headless mode that works everywhere:
+
 ```bash
-# Download announcements for a stock (visible browser)
+# Build the Docker image (one time)
+docker-compose build
+
+# Run the scraper (truly invisible)
+docker-compose run --rm nse-scraper TATASTEEL --headless
+
+# Check downloads
+ls -lh downloads/
+
+# Or use the helper script
+./run_scraper.sh TATASTEEL --headless
+```
+
+#### Local Usage (macOS/Linux/Windows)
+
+```bash
+# Install dependencies
+pip install -r requirements.txt
+
+# Download announcements - browser will be visible
 python nse_selenium_scraper.py TATASTEEL
 
-# Run in headless mode (may not work due to NSE bot detection)
+# Headless mode (Linux only, browser visible on macOS/Windows)
 python nse_selenium_scraper.py TATASTEEL --headless
 ```
 
-**Output:**
-- CSV file containing corporate announcements (date, subject, description, attachments)
-- Saved to `./downloads/` directory
-- Error screenshots saved if scraping fails
+#### The Headless Challenge & Solution
 
-**Technical details:**
-- Uses `undetected-chromedriver` to bypass Cloudflare/bot detection
-- Waits for dynamic content to load before interacting
-- Automatically finds latest downloaded file
-- URL: https://www.nseindia.com/companies-listing/corporate-filings-announcements
+NSE India blocks Chrome's native `--headless` mode through sophisticated bot detection. Here's what we tried and what works:
 
-**Note:** NSE India has aggressive bot detection. Headless mode may not work reliably. Visible browser mode is recommended.
+**❌ What Doesn't Work:**
+- Chrome's `--headless` flag alone → NSE detects and blocks it
+- Stealth arguments (`--disable-blink-features`) → Still detected
+- PyVirtualDisplay on macOS → macOS Chrome uses native windows, ignores X11
+
+**✅ What Works:**
+
+1. **Docker with Linux + Xvfb (Best Solution)**
+   - Runs Chrome in a real Linux container
+   - Uses Xvfb (X Virtual Frame Buffer) for invisible display
+   - Chrome runs normally but renders to virtual display
+
+2. **Visible Browser (macOS/Windows Local)**
+   - Browser window appears but scraping works reliably
+
+
+#### Technical Details
+
+**Architecture:**
+```
+┌─────────────────────────────────────────┐
+│  Host (macOS/Windows/Linux)             │
+│  ┌───────────────────────────────────┐  │
+│  │  Docker Container (Linux/AMD64)   │  │
+│  │  ┌─────────────────────────────┐  │  │
+│  │  │  Xvfb (Virtual Display :99) │  │  │
+│  │  │  ┌───────────────────────┐  │  │  │
+│  │  │  │  Chrome Browser       │  │  │  │
+│  │  │  │  (thinks it's real)   │  │  │  │
+│  │  │  └───────────────────────┘  │  │  │
+│  │  └─────────────────────────────┘  │  │
+│  │                                     │  │
+│  │  Downloads: /app/downloads          │  │
+│  │  (mounted to host ./downloads/)     │  │
+│  └───────────────────────────────────┘  │
+└─────────────────────────────────────────┘
+```
 
 
 ## Setup

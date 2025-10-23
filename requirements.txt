@@ -4,3 +4,4 @@ playwright
 requests
 selenium
 undetected-chromedriver
+pyvirtualdisplay
