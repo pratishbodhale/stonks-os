@@ -5,6 +5,15 @@ from selenium.webdriver.support import expected_conditions as EC
 import time
 from pathlib import Path
 import sys
+import os
+
+
+# Try to import pyvirtualdisplay for headless mode
+try:
+    from pyvirtualdisplay import Display
+    HAS_VIRTUAL_DISPLAY = True
+except ImportError:
+    HAS_VIRTUAL_DISPLAY = False
 
 
 def scrape_nse_announcements(ticker: str, headless: bool = False, download_dir: str = './downloads'):
@@ -13,7 +22,9 @@ def scrape_nse_announcements(ticker: str, headless: bool = False, download_dir: 
 
     Args:
         ticker: Stock ticker symbol (e.g., 'TATASTEEL')
-        headless: Run in headless mode (default: False, not recommended for NSE)
+        headless: Run in headless mode (default: False)
+                 Note: On macOS, the browser window will still be visible
+                 True headless only works on Linux with Xvfb
         download_dir: Directory where downloads will be saved
 
     Returns:
@@ -23,11 +34,54 @@ def scrape_nse_announcements(ticker: str, headless: bool = False, download_dir: 
     download_path = Path(download_dir).absolute()
     download_path.mkdir(parents=True, exist_ok=True)
 
+    # Initialize virtual display for headless mode
+    display = None
+    if headless:
+        if not HAS_VIRTUAL_DISPLAY:
+            print("Warning: pyvirtualdisplay not available. Headless mode may fail.")
+            print("Install with: pip install pyvirtualdisplay")
+            print("And ensure xvfb is installed (brew install xquartz on macOS)")
+        else:
+            print("Starting virtual display for headless mode...")
+            try:
+                # Use Xvfb backend explicitly with visible=0 for truly invisible display
+                display = Display(visible=False, size=(1920, 1080), backend='xvfb')
+                display.start()
+                print(f"Virtual display started successfully (DISPLAY={display.display})")
+
+                # Ensure the DISPLAY environment variable is set for Chrome
+                os.environ['DISPLAY'] = f':{display.display}'
+                print(f"Set DISPLAY environment variable to: {os.environ['DISPLAY']}")
+            except Exception as e:
+                print(f"Warning: Could not start virtual display: {e}")
+                print("Continuing without virtual display...")
+                display = None
+
     # Set up Chrome options
     options = uc.ChromeOptions()
 
-    if headless:
-        options.add_argument('--headless')
+    # Note: When using virtual display, we don't use --headless flag
+    # The browser runs normally but on a virtual display
+    if headless and not display:
+        # Fallback to headless mode if virtual display failed
+        print("Using Chrome headless mode (less reliable for NSE)")
+        options.add_argument('--headless=new')
+
+        # Additional stealth options for headless mode
+        options.add_argument('--disable-blink-features=AutomationControlled')
+        options.add_argument('--disable-dev-shm-usage')
+        options.add_argument('--no-sandbox')
+        options.add_argument('--disable-gpu')
+        options.add_argument('--disable-software-rasterizer')
+        options.add_argument('--disable-extensions')
+        options.add_argument('--dns-prefetch-disable')
+        options.add_argument('--disable-features=VizDisplayCompositor')
+
+        # Set a realistic window size
+        options.add_argument('--window-size=1920,1080')
+
+        # Set a realistic user agent
+        options.add_argument('user-agent=Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36')
 
     # Set download preferences
     prefs = {
@@ -43,11 +97,20 @@ def scrape_nse_announcements(ticker: str, headless: bool = False, download_dir: 
     try:
         print("Starting undetected Chrome browser...")
 
-        # Initialize undetected chromedriver
-        driver = uc.Chrome(options=options, version_main=None)
+        # Initialize undetected chromedriver with additional stealth settings
+        driver = uc.Chrome(
+            options=options,
+            version_main=None,
+            use_subprocess=True,  # Use subprocess to avoid detection
+            suppress_welcome=True  # Suppress welcome screen
+        )
 
-        # Maximize window for better element visibility
-        driver.maximize_window()
+        # Small delay after driver initialization
+        time.sleep(2)
+
+        # Maximize window for better element visibility (skip in headless)
+        if not headless:
+            driver.maximize_window()
 
         print("Navigating to corporate filings page...")
 
@@ -157,6 +220,14 @@ def scrape_nse_announcements(ticker: str, headless: bool = False, download_dir: 
             time.sleep(2)
             driver.quit()
 
+        # Stop virtual display if it was started
+        if display:
+            print("Stopping virtual display...")
+            try:
+                display.stop()
+            except Exception as e:
+                print(f"Error stopping display: {e}")
+
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:
@@ -169,7 +240,23 @@ if __name__ == "__main__":
     headless_mode = '--headless' in sys.argv
 
     if headless_mode:
-        print("Note: Headless mode may not work well with NSE India's bot detection")
+        import platform
+        if platform.system() == 'Darwin':  # macOS
+            print("")
+            print("=" * 70)
+            print("NOTE: Running on macOS")
+            print("=" * 70)
+            print("Chrome will be VISIBLE on macOS (even with --headless flag)")
+            print("macOS Chrome uses native windows, not X11 virtual displays.")
+            print("")
+            print("For truly invisible headless mode, use one of these options:")
+            print("  1. Run without --headless flag (recommended for macOS)")
+            print("  2. Deploy to a Linux server where Xvfb works")
+            print("  3. Use Docker with Linux image")
+            print("")
+            print("See NSE_SCRAPER_README.md for details")
+            print("=" * 70)
+            print("")
 
     result = scrape_nse_announcements(ticker_symbol, headless=headless_mode)
 

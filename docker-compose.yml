@@ -1,0 +1,42 @@
+version: '3.8'
+
+services:
+  nse-scraper:
+    platform: linux/amd64  # Force AMD64 for Chrome compatibility
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: nse-scraper
+
+    # Mount downloads directory to persist CSV files on host
+    volumes:
+      - ./downloads:/app/downloads
+
+    # Share host network (optional, helps with some networking scenarios)
+    # network_mode: host
+
+    # Set environment variables
+    environment:
+      - DISPLAY=:99
+      - PYTHONUNBUFFERED=1
+
+    # Shared memory size (important for Chrome stability)
+    shm_size: 2gb
+
+    # Command to run (override with docker-compose run arguments)
+    # Example: docker-compose run nse-scraper TATASTEEL --headless
+    command: ["--help"]
+
+    # Security options
+    security_opt:
+      - seccomp:unconfined
+
+    # Resource limits (optional)
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '1'
+          memory: 1G
