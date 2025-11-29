@@ -2,10 +2,11 @@ version: '3.8'
 
 services:
   nse-scraper:
-    platform: linux/amd64  # Force AMD64 for Chrome compatibility
+    platform: linux/arm64  # ARM64 for Raspberry Pi
+#    image: pratish/nse-scraper
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.arm64
     container_name: nse-scraper
 
     # Mount downloads directory to persist CSV files on host
@@ -35,8 +36,8 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '2'
-          memory: 2G
-        reservations:
           cpus: '1'
           memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 500M

@@ -6,6 +6,7 @@ import time
 from pathlib import Path
 import sys
 import os
+import platform
 
 
 # Try to import pyvirtualdisplay for headless mode
@@ -60,6 +61,13 @@ def scrape_nse_announcements(ticker: str, headless: bool = False, download_dir: 
     # Set up Chrome options
     options = uc.ChromeOptions()
 
+    # Check if running as root (common in Docker containers)
+    is_root = os.geteuid() == 0 if hasattr(os, 'geteuid') else False
+    if is_root:
+        print("Running as root - adding --no-sandbox flag for Chromium compatibility")
+        options.add_argument('--no-sandbox')
+        options.add_argument('--disable-dev-shm-usage')
+
     # Note: When using virtual display, we don't use --headless flag
     # The browser runs normally but on a virtual display
     if headless and not display:
@@ -97,13 +105,28 @@ def scrape_nse_announcements(ticker: str, headless: bool = False, download_dir: 
     try:
         print("Starting undetected Chrome browser...")
 
+        # Detect ARM64 architecture and use system chromedriver
+        is_arm64 = platform.machine() in ('aarch64', 'arm64')
+
         # Initialize undetected chromedriver with additional stealth settings
-        driver = uc.Chrome(
-            options=options,
-            version_main=None,
-            use_subprocess=True,  # Use subprocess to avoid detection
-            suppress_welcome=True  # Suppress welcome screen
-        )
+        if is_arm64:
+            print("ARM64 detected - using system chromedriver (/usr/bin/chromedriver)")
+            # On ARM64, use system-installed chromedriver and chromium
+            driver = uc.Chrome(
+                options=options,
+                driver_executable_path='/usr/bin/chromedriver',
+                browser_executable_path='/usr/bin/chromium',
+                use_subprocess=True,
+                suppress_welcome=True
+            )
+        else:
+            # On x86_64, let undetected_chromedriver auto-download
+            driver = uc.Chrome(
+                options=options,
+                version_main=None,
+                use_subprocess=True,  # Use subprocess to avoid detection
+                suppress_welcome=True  # Suppress welcome screen
+            )
 
         # Small delay after driver initialization
         time.sleep(2)

@@ -8,7 +8,7 @@ ENV PYTHONUNBUFFERED=1 \
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
-    # Chrome dependencies
+    # Chromium and dependencies
     wget \
     gnupg \
     ca-certificates \
@@ -38,29 +38,21 @@ RUN apt-get update && apt-get install -y \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Google Chrome
-# Download and install Chrome GPG key (new method for Debian/Ubuntu)
-RUN wget -q -O /tmp/google-chrome-key.pub https://dl-ssl.google.com/linux/linux_signing_key.pub \
-    && gpg --dearmor -o /usr/share/keyrings/google-chrome.gpg /tmp/google-chrome-key.pub \
-    && rm /tmp/google-chrome-key.pub
-
-# Add Chrome repository with signed-by key
-RUN echo "deb [arch=amd64 signed-by=/usr/share/keyrings/google-chrome.gpg] http://dl.google.com/linux/chrome/deb/ stable main" \
-    > /etc/apt/sources.list.d/google-chrome.list
-
-# Install Chrome
+# Install Chromium (ARM64-compatible alternative to Chrome)
 RUN apt-get update \
-    && apt-get install -y google-chrome-stable \
-    && rm -rf /var/lib/apt/lists/*
+    && apt-get install -y chromium chromium-driver \
+    && rm -rf /var/lib/apt/lists/* \
+    && chmod +x /usr/bin/chromedriver \
+    && chmod +x /usr/bin/chromium
 
 # Create app directory
 WORKDIR /app
 
 # Copy requirements first for better caching
-COPY requirements.scraper.txt .
+COPY requirements.txt .
 
 # Install Python dependencies
-RUN pip install --no-cache-dir -r requirements.scraper.txt
+RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application files
 COPY nse_selenium_scraper.py .
@@ -68,14 +60,8 @@ COPY nse_selenium_scraper.py .
 # Create downloads directory
 RUN mkdir -p /app/downloads
 
-# Create a non-root user to run the application
-RUN useradd -m -u 1000 scraper && \
-    chown -R scraper:scraper /app
-
-# Switch to non-root user
-USER scraper
-
 # Set the entrypoint
+# Note: Running as root in container for chromium/chromedriver compatibility
 ENTRYPOINT ["python", "nse_selenium_scraper.py"]
 
 # Default command (can be overridden)

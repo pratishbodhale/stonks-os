@@ -1,5 +1,3 @@
-kiteconnect
-pymongo
 playwright
 requests
 selenium

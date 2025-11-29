@@ -4,7 +4,7 @@ A collection of tools for stock market automation and data management.
 
 ## Tools
 
-### 1. Fetch Stock Holdings from Kite
+## 1. Fetch Stock Holdings from Kite
 Fetches your stock holdings from Kite (Zerodha) with automated OAuth authentication. This tool solves the authentication challenge and provides clean access to your holdings data.
 
 Includes a reference implementation that syncs holdings to MongoDB with historical tracking - easily adapt this to store data anywhere (PostgreSQL, CSV, S3, etc.) or use it directly in your trading algorithms.
@@ -51,7 +51,53 @@ The schema tracks:
 - **enabled**: Boolean flag indicating if stock is currently in your portfolio
 - **history**: Array of enable/disable events with timestamps (useful for tracking portfolio changes over time)
 
-### 2. NSE Announcements Scraper
+### Setup
+
+1. Install dependencies:
+```bash
+pip install -r requirements.scraper.txt
+```
+
+2. Create a `.env` file in the root directory with the following variables:
+```env
+## KITE API keys (Required) - Get these from https://developers.kite.trade/
+API_KEY=your_kite_api_key
+API_SECRET=your_kite_api_secret
+
+## MongoDB credentials (Optional) - Only needed if using the MongoDB sync feature
+MONGO_URI=your_mongodb_connection_string
+MONGO_DB_NAME=your_database_name
+MONGO_DB_COLLECTION_NAME=your_collection_name
+```
+
+#### Environment Variables
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `API_KEY` | Yes | Your Kite Connect API key |
+| `API_SECRET` | Yes | Your Kite Connect API secret |
+| `MONGO_URI` | No | MongoDB connection string (only if using MongoDB sync) |
+| `MONGO_DB_NAME` | No | MongoDB database name |
+| `MONGO_DB_COLLECTION_NAME` | No | MongoDB collection name for storing holdings |
+
+### Usage
+
+```bash
+python kite.py
+```
+
+This will:
+- Authenticate with Kite (opens browser for login)
+- Fetch your current holdings from Kite API
+- (If configured) Sync holdings to MongoDB with tracking history
+
+### Notes
+
+- Access token is cached in `.access_token` file
+- First run will open a browser for Kite login
+- Subsequent runs will use cached token until it expires
+
+## 2. NSE Announcements Scraper
 Automated scraper for downloading corporate filings and announcements from NSE India website. Uses undetected-chromedriver to bypass bot detection and download CSV files containing company announcements.
 
 **Why this tool?**
@@ -69,7 +115,7 @@ Automated scraper for downloading corporate filings and announcements from NSE I
 4. Clicks download button to get CSV file with all announcements
 5. Saves CSV to `./downloads/` directory
 
-#### Quick Start (Docker - Recommended)
+### Quick Start (Docker - Recommended)
 
 Docker provides true headless mode that works everywhere:
 
@@ -87,11 +133,11 @@ ls -lh downloads/
 ./run_scraper.sh TATASTEEL --headless
 ```
 
-#### Local Usage (macOS/Linux/Windows)
+### Local Usage (macOS/Linux/Windows)
 
 ```bash
 # Install dependencies
-pip install -r requirements.txt
+pip install -r requirements.scraper.txt
 
 # Download announcements - browser will be visible
 python nse_selenium_scraper.py TATASTEEL
@@ -100,7 +146,7 @@ python nse_selenium_scraper.py TATASTEEL
 python nse_selenium_scraper.py TATASTEEL --headless
 ```
 
-#### The Headless Challenge & Solution
+### The Headless Challenge & Solution
 
 NSE India blocks Chrome's native `--headless` mode through sophisticated bot detection. Here's what we tried and what works:
 
@@ -120,7 +166,7 @@ NSE India blocks Chrome's native `--headless` mode through sophisticated bot det
    - Browser window appears but scraping works reliably
 
 
-#### Technical Details
+### Technical Details
 
 **Architecture:**
 ```
@@ -135,63 +181,64 @@ NSE India blocks Chrome's native `--headless` mode through sophisticated bot det
 │  │  │  │  (thinks it's real)   │  │  │  │
 │  │  │  └───────────────────────┘  │  │  │
 │  │  └─────────────────────────────┘  │  │
-│  │                                     │  │
-│  │  Downloads: /app/downloads          │  │
-│  │  (mounted to host ./downloads/)     │  │
+│  │                                   │  │
+│  │  Downloads: /app/downloads        │  │
+│  │  (mounted to host ./downloads/)   │  │
 │  └───────────────────────────────────┘  │
 └─────────────────────────────────────────┘
 ```
 
+## 3. NSE Scraper HTTP API Server
 
-## Setup
+HTTP API server that provides a RESTful interface to the NSE scraper. Spawns Docker containers on demand and returns downloaded CSV files.
 
-1. Install dependencies:
-```bash
-pip install -r requirements.txt
-```
+**Why this tool?**
+- **RESTful API** - Simple HTTP endpoints for programmatic access
+- **Docker orchestration** - Automatically manages Docker containers
+- **File management** - Downloads and serves CSV files via HTTP
 
-2. Create a `.env` file in the root directory with the following variables:
-```env
-## KITE API keys (Required) - Get these from https://developers.kite.trade/
-API_KEY=your_kite_api_key
-API_SECRET=your_kite_api_secret
+**How it works:**
+1. Receive HTTP request with ticker symbol
+2. Spawn Docker container to run NSE scraper
+3. Monitor downloads directory for new CSV file
+4. Return CSV file as HTTP response
 
-## MongoDB credentials (Optional) - Only needed if using the MongoDB sync feature
-MONGO_URI=your_mongodb_connection_string
-MONGO_DB_NAME=your_database_name
-MONGO_DB_COLLECTION_NAME=your_collection_name
-```
-
-## Environment Variables
-
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `API_KEY` | Yes | Your Kite Connect API key |
-| `API_SECRET` | Yes | Your Kite Connect API secret |
-| `MONGO_URI` | No | MongoDB connection string (only if using MongoDB sync) |
-| `MONGO_DB_NAME` | No | MongoDB database name |
-| `MONGO_DB_COLLECTION_NAME` | No | MongoDB collection name for storing holdings |
-
-## Usage
-
-### Fetch Kite Holdings
+**Quick Start:**
 
 ```bash
-python kite.py
+# Install dependencies
+pip install -r requirements.scraper.txt
+
+# Build Docker image (one time)
+docker-compose build
+
+# Start the API server
+python api_server.py
+
+# Make a request (in another terminal)
+curl -X POST http://localhost:8000/scrape/TATASTEEL -o tatasteel.csv
 ```
 
-This will:
-- Authenticate with Kite (opens browser for login)
-- Fetch your current holdings from Kite API
-- (If configured) Sync holdings to MongoDB with tracking history
+**API Endpoints:**
+- `POST /scrape/{ticker}` - Scrape announcements and download CSV
+- `GET /scrape/{ticker}/info` - Get file info without downloading
+- `GET /health` - Health check endpoint
+- `GET /` - API information and usage examples
 
-### NSE Scrapers
+**Interactive Documentation:**
+- Swagger UI: http://localhost:8000/docs
+- ReDoc: http://localhost:8000/redoc
 
-The repository also includes NSE data scrapers:
-- `nse_selenium_scraper.py` - NSE Selenium-based stock announcements scraper
+**Example Usage:**
 
-## Notes
+```bash
+# Download announcements for a ticker
+curl -X POST http://localhost:8000/scrape/TATASTEEL -o tatasteel.csv
 
-- Access token is cached in `.access_token` file
-- First run will open a browser for Kite login
-- Subsequent runs will use cached token until it expires
+# Get file information
+curl http://localhost:8000/scrape/RELIANCE/info
+
+# Health check
+curl http://localhost:8000/health
+```
+
