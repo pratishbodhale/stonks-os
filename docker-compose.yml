@@ -2,11 +2,8 @@ version: '3.8'
 
 services:
   nse-scraper:
-    platform: linux/arm64  # ARM64 for Raspberry Pi
-#    image: pratish/nse-scraper
     build:
       context: .
-      dockerfile: Dockerfile.arm64
     container_name: nse-scraper
 
     # Mount downloads directory to persist CSV files on host
@@ -22,7 +19,7 @@ services:
       - PYTHONUNBUFFERED=1
 
     # Shared memory size (important for Chrome stability)
-    shm_size: 2gb
+    shm_size: 1gb
 
     # Command to run (override with docker-compose run arguments)
     # Example: docker-compose run nse-scraper TATASTEEL --headless
