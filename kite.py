@@ -165,6 +165,62 @@ def fetch_holdings(api_key, api_secret, access_token):
         return holdings
 
 
+def fetch_mf_holdings(api_key, api_secret, access_token):
+    """
+    Fetch mutual fund holdings from Kite API (Coin / DEMAT MF units).
+    Retry with new token if authentication fails.
+
+    Args:
+        api_key: Kite API key
+        api_secret: Kite API secret
+        access_token: Current access token
+
+    Returns:
+        list: List of MF holding dicts (see Kite mf/holdings docs)
+    """
+    kite = KiteConnect(api_key=api_key)
+    kite.set_access_token(access_token)
+
+    try:
+        mf_holdings = kite.mf_holdings()
+        print(f"Retrieved {len(mf_holdings)} mutual fund holdings")
+        return mf_holdings
+    except KiteException as e:
+        print(f"Error fetching MF holdings: {e}")
+        print("Access token may be invalid. Attempting to get new token...")
+
+        new_token = get_access_token(api_key, api_secret)
+        kite.set_access_token(new_token)
+
+        mf_holdings = kite.mf_holdings()
+        print(f"Retrieved {len(mf_holdings)} mutual fund holdings with new token")
+        return mf_holdings
+
+
+def fetch_mf_instruments(api_key, api_secret, access_token):
+    """
+    Fetch mutual fund instrument master (CSV parsed to list of dicts).
+    Same token retry behaviour as fetch_mf_holdings.
+    """
+    kite = KiteConnect(api_key=api_key)
+    kite.set_access_token(access_token)
+
+    try:
+        instruments = kite.mf_instruments()
+        print(f"Retrieved {len(instruments)} mutual fund instruments")
+        return instruments
+    except KiteException as e:
+        print(f"Error fetching MF instruments: {e}")
+        print("Access token may be invalid. Attempting to get new token...")
+
+        new_token = get_access_token(api_key, api_secret)
+        kite.set_access_token(new_token)
+
+        instruments = kite.mf_instruments()
+        print(f"Retrieved {len(instruments)} mutual fund instruments with new token")
+        return instruments
+
+
 def sync_holdings_to_mongo(holdings, mongo_uri, db_name="misc", collection_name="track_ticks"):
     """
     Sync holdings to MongoDB, tracking enabled/disabled status and history.

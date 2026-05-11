@@ -1,0 +1,5 @@
+holdings/data/*.db
+holdings/frontend/node_modules
+holdings/frontend/dist
+__pycache__/
+*.py[cod]
