@@ -94,6 +94,34 @@ export type FundDetailsResponse = {
   disclaimer: string;
 };
 
+export type CompareRow = {
+  isin: string;
+  fund_name: string;
+  weight_pct: number | null;
+  invested_value: number | null;
+  current_value: number | null;
+  expense_ratio_snapshot: number | null;
+  primary_source: string | null;
+  fallback_used: boolean | null;
+  cached_detail: boolean | null;
+  ter_pct: number | null;
+  aum_crore_est: number | null;
+  category: string | null;
+  amc: string | null;
+  return_1y_pct: number | null;
+  return_3y_pct: number | null;
+  return_5y_pct: number | null;
+  nav: number | null;
+  nav_date: string | null;
+  error: string | null;
+};
+
+export type CompareResponse = {
+  rows: CompareRow[];
+  as_of: string;
+  cache_ttl_seconds: number;
+};
+
 function fmtPct(v: number | null | undefined, digits = 2): string {
   if (v === null || v === undefined) return "—";
   return `${v.toFixed(digits)}%`;
@@ -215,6 +243,119 @@ function sortPositions(
   });
 }
 
+function posKey(p: Position, index: number): string {
+  return `${index}:${p.tradingsymbol}:${p.folio ?? ""}`;
+}
+
+type CompareSortKey =
+  | "fund"
+  | "isin"
+  | "weight_pct"
+  | "invested_value"
+  | "current_value"
+  | "expense_ratio_snapshot"
+  | "ter_pct"
+  | "aum_crore_est"
+  | "return_1y_pct"
+  | "return_3y_pct"
+  | "return_5y_pct"
+  | "category"
+  | "amc"
+  | "primary_source"
+  | "fallback_used"
+  | "cached_detail"
+  | "nav"
+  | "error";
+
+function numRank(
+  a: number | null | undefined,
+  b: number | null | undefined,
+  asc: boolean,
+): number {
+  const am = a === null || a === undefined;
+  const bm = b === null || b === undefined;
+  if (am && bm) return 0;
+  if (am) return 1;
+  if (bm) return -1;
+  const d = a - b;
+  return asc ? d : -d;
+}
+
+function strRank(
+  a: string | null | undefined,
+  b: string | null | undefined,
+  asc: boolean,
+): number {
+  const as = (a ?? "").trim();
+  const bs = (b ?? "").trim();
+  const am = !as;
+  const bm = !bs;
+  if (am && bm) return 0;
+  if (am) return 1;
+  if (bm) return -1;
+  const d = as.localeCompare(bs);
+  return asc ? d : -d;
+}
+
+function boolRank(
+  a: boolean | null | undefined,
+  b: boolean | null | undefined,
+  asc: boolean,
+): number {
+  const av = a === true ? 1 : 0;
+  const bv = b === true ? 1 : 0;
+  return asc ? av - bv : bv - av;
+}
+
+function sortCompareRows(
+  rows: CompareRow[],
+  key: CompareSortKey,
+  asc: boolean,
+): CompareRow[] {
+  return [...rows].sort((a, b) => {
+    switch (key) {
+      case "fund":
+        return strRank(a.fund_name, b.fund_name, asc);
+      case "isin":
+        return strRank(a.isin, b.isin, asc);
+      case "weight_pct":
+        return numRank(a.weight_pct, b.weight_pct, asc);
+      case "invested_value":
+        return numRank(a.invested_value, b.invested_value, asc);
+      case "current_value":
+        return numRank(a.current_value, b.current_value, asc);
+      case "expense_ratio_snapshot":
+        return numRank(a.expense_ratio_snapshot, b.expense_ratio_snapshot, asc);
+      case "ter_pct":
+        return numRank(a.ter_pct, b.ter_pct, asc);
+      case "aum_crore_est":
+        return numRank(a.aum_crore_est, b.aum_crore_est, asc);
+      case "return_1y_pct":
+        return numRank(a.return_1y_pct, b.return_1y_pct, asc);
+      case "return_3y_pct":
+        return numRank(a.return_3y_pct, b.return_3y_pct, asc);
+      case "return_5y_pct":
+        return numRank(a.return_5y_pct, b.return_5y_pct, asc);
+      case "category":
+        return strRank(a.category, b.category, asc);
+      case "amc":
+        return strRank(a.amc, b.amc, asc);
+      case "primary_source":
+        return strRank(a.primary_source, b.primary_source, asc);
+      case "fallback_used":
+        return boolRank(a.fallback_used, b.fallback_used, asc);
+      case "cached_detail":
+        return boolRank(a.cached_detail, b.cached_detail, asc);
+      case "nav":
+        return numRank(a.nav, b.nav, asc);
+      case "error":
+        return strRank(a.error, b.error, asc);
+      default:
+        return 0;
+    }
+  });
+}
+
 export default function App() {
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
   const [loading, setLoading] = useState(true);
@@ -222,6 +363,14 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   const [sortKey, setSortKey] = useState<SortKey>("current_value");
   const [sortAsc, setSortAsc] = useState(false);
+
+  const [mainTab, setMainTab] = useState<"portfolio" | "compare">("portfolio");
+  const [compareSelected, setCompareSelected] = useState<Set<string>>(() => new Set());
+  const [compareResult, setCompareResult] = useState<CompareResponse | null>(null);
+  const [compareLoading, setCompareLoading] = useState(false);
+  const [compareErr, setCompareErr] = useState<string | null>(null);
+  const [compareSortKey, setCompareSortKey] = useState<CompareSortKey>("weight_pct");
+  const [compareSortAsc, setCompareSortAsc] = useState(false);
 
   const [detailRow, setDetailRow] = useState<Position | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
@@ -356,6 +505,85 @@ export default function App() {
     );
   }, [snapshot, sortKey, sortAsc]);
 
+  const sortedCompareRows = useMemo(() => {
+    if (!compareResult?.rows.length) return [];
+    return sortCompareRows(compareResult.rows, compareSortKey, compareSortAsc);
+  }, [compareResult, compareSortKey, compareSortAsc]);
+
+  const runCompare = useCallback(
+    async (refresh: boolean) => {
+      if (!snapshot) return;
+      const entries = snapshot.positions
+        .map((p, i) => ({ p, i }))
+        .filter(({ p, i }) => compareSelected.has(posKey(p, i)));
+      if (!entries.length) {
+        setCompareErr("Select at least one fund.");
+        return;
+      }
+      setCompareErr(null);
+      setCompareLoading(true);
+      try {
+        const total = snapshot.total_current;
+        const holdings = entries.map(({ p }) => ({
+          isin: p.tradingsymbol,
+          fund_name: (p.fund || p.tradingsymbol).trim() || p.tradingsymbol,
+          weight_pct: total > 0 ? (p.current_value / total) * 100 : 0,
+          invested_value: p.invested_value,
+          current_value: p.current_value,
+          expense_ratio_snapshot:
+            p.expense_ratio === undefined ? null : p.expense_ratio,
+        }));
+        const res = await fetch("/api/mf/compare", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ holdings, refresh }),
+        });
+        const text = await res.text();
+        let body: unknown;
+        try {
+          body = JSON.parse(text);
+        } catch {
+          body = { detail: text };
+        }
+        if (!res.ok) {
+          const d = (body as { detail?: string }).detail;
+          throw new Error(typeof d === "string" ? d : text);
+        }
+        setCompareResult(body as CompareResponse);
+      } catch (e) {
+        setCompareErr(e instanceof Error ? e.message : "Compare failed");
+      } finally {
+        setCompareLoading(false);
+      }
+    },
+    [snapshot, compareSelected],
+  );
+
+  const toggleCompareSort = (key: CompareSortKey) => {
+    if (compareSortKey === key) setCompareSortAsc(!compareSortAsc);
+    else {
+      setCompareSortKey(key);
+      setCompareSortAsc(
+        key === "fund" ||
+          key === "isin" ||
+          key === "category" ||
+          key === "amc" ||
+          key === "error",
+      );
+    }
+  };
+
+  const cth = (key: CompareSortKey, label: string) => (
+    <th
+      className="sortable"
+      onClick={() => toggleCompareSort(key)}
+      title="Click to sort"
+    >
+      {label}
+      {compareSortKey === key ? (compareSortAsc ? " \u2191" : " \u2193") : ""}
+    </th>
+  );
+
   const toggleSort = (key: SortKey) => {
     if (sortKey === key) setSortAsc(!sortAsc);
     else {
@@ -383,7 +611,7 @@ export default function App() {
       : null;
 
   return (
-    <div className="app">
+    <div className="app app-root">
       <header className="app-header">
         <div>
           <h1>Mutual fund holdings</h1>
@@ -428,6 +656,24 @@ export default function App() {
 
       {snapshot && (
         <>
+          <nav className="main-tabs" aria-label="Main views">
+            <button
+              type="button"
+              className={mainTab === "portfolio" ? "tab tab-active" : "tab"}
+              onClick={() => setMainTab("portfolio")}
+            >
+              Portfolio
+            </button>
+            <button
+              type="button"
+              className={mainTab === "compare" ? "tab tab-active" : "tab"}
+              onClick={() => setMainTab("compare")}
+            >
+              Compare
+            </button>
+          </nav>
+          {mainTab === "portfolio" && (
+            <>
           <section className="summary">
             <div className="summary-card">
               <label>Invested</label>
@@ -523,7 +769,7 @@ export default function App() {
                 <a href="https://mfapi.in/">MFapi.in</a> as fallback.
               </p>
               <div className="panel-table">
-                <table>
+                <table className="holdings-table">
                   <thead>
                     <tr>
                       {th("fund", "Fund")}
@@ -592,6 +838,213 @@ export default function App() {
               </div>
             </div>
           </div>
+            </>
+          )}
+          {mainTab === "compare" && (
+            <div className="compare-layout">
+              <div className="panel compare-selector-panel">
+                <h2>Compare funds</h2>
+                <p className="meta table-hint">
+                  Tick the schemes to compare. The server reuses cached market data for up
+                  to one day (see TTL below); <strong>Force refresh</strong> bypasses cache
+                  and refetches.
+                </p>
+                <div className="compare-toolbar">
+                  <button
+                    type="button"
+                    className="secondary"
+                    onClick={() => {
+                      setCompareSelected(
+                        new Set(
+                          snapshot.positions.map((p, i) => posKey(p, i)),
+                        ),
+                      );
+                    }}
+                  >
+                    Select all
+                  </button>
+                  <button
+                    type="button"
+                    className="secondary"
+                    onClick={() => setCompareSelected(new Set())}
+                  >
+                    Clear
+                  </button>
+                  <span className="meta compare-count">
+                    {compareSelected.size} selected
+                  </span>
+                  <button
+                    type="button"
+                    className="primary"
+                    disabled={compareLoading}
+                    onClick={() => void runCompare(false)}
+                  >
+                    {compareLoading ? "Loading…" : "Load comparison"}
+                  </button>
+                  <button
+                    type="button"
+                    className="secondary"
+                    disabled={compareLoading}
+                    onClick={() => void runCompare(true)}
+                  >
+                    Force refresh
+                  </button>
+                </div>
+                {compareErr && (
+                  <div className="error compare-error">{compareErr}</div>
+                )}
+                <ul className="compare-fund-list">
+                  {snapshot.positions.map((p, i) => {
+                    const k = posKey(p, i);
+                    const checked = compareSelected.has(k);
+                    const w =
+                      snapshot.total_current > 0
+                        ? (p.current_value / snapshot.total_current) * 100
+                        : 0;
+                    return (
+                      <li key={k}>
+                        <label className="compare-fund-row">
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={(e) => {
+                              setCompareSelected((prev) => {
+                                const next = new Set(prev);
+                                if (e.target.checked) next.add(k);
+                                else next.delete(k);
+                                return next;
+                              });
+                            }}
+                          />
+                          <span className="compare-fund-name">
+                            {p.fund || p.tradingsymbol}
+                          </span>
+                          <span className="meta compare-fund-w">
+                            {w.toFixed(1)}% portf.
+                          </span>
+                        </label>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+              {compareResult && (
+                <div className="panel compare-table-panel">
+                  <h2>Comparison table</h2>
+                  <p className="meta table-hint">
+                    As of {compareResult.as_of} · server cache TTL{" "}
+                    {compareResult.cache_ttl_seconds}s (max 1 day)
+                  </p>
+                  <div className="panel-table compare-table-scroll">
+                    <table className="compare-table">
+                      <thead>
+                        <tr>
+                          {cth("fund", "Fund")}
+                          {cth("isin", "ISIN")}
+                          {cth("weight_pct", "% portf.")}
+                          {cth("invested_value", "Invested")}
+                          {cth("current_value", "Current")}
+                          {cth("expense_ratio_snapshot", "TER snap.")}
+                          {cth("ter_pct", "TER mkt.")}
+                          {cth("aum_crore_est", "AUM ₹ Cr (est.)")}
+                          {cth("return_1y_pct", "1Y %")}
+                          {cth("return_3y_pct", "3Y %")}
+                          {cth("return_5y_pct", "5Y %")}
+                          {cth("category", "Category")}
+                          {cth("amc", "AMC")}
+                          {cth("primary_source", "Source")}
+                          {cth("fallback_used", "Fallback")}
+                          {cth("cached_detail", "Cached")}
+                          {cth("nav", "NAV")}
+                          {cth("error", "Error")}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {sortedCompareRows.map((r, ri) => (
+                          <tr key={`${r.isin}-${ri}-${r.fund_name}`}>
+                            <td className="fund-name compare-fund-cell">
+                              {r.fund_name || "—"}
+                            </td>
+                            <td className="mono">{r.isin}</td>
+                            <td className="num">
+                              {r.weight_pct === null || r.weight_pct === undefined
+                                ? "—"
+                                : `${r.weight_pct.toFixed(2)}%`}
+                            </td>
+                            <td className="num">
+                              {r.invested_value === null ||
+                              r.invested_value === undefined
+                                ? "—"
+                                : inr.format(r.invested_value)}
+                            </td>
+                            <td className="num">
+                              {r.current_value === null ||
+                              r.current_value === undefined
+                                ? "—"
+                                : inr.format(r.current_value)}
+                            </td>
+                            <td className="num">
+                              {r.expense_ratio_snapshot === null ||
+                              r.expense_ratio_snapshot === undefined
+                                ? "—"
+                                : `${r.expense_ratio_snapshot.toFixed(2)}%`}
+                            </td>
+                            <td className="num">
+                              {r.ter_pct === null || r.ter_pct === undefined
+                                ? "—"
+                                : `${r.ter_pct.toFixed(2)}%`}
+                            </td>
+                            <td className="num">
+                              {r.aum_crore_est === null ||
+                              r.aum_crore_est === undefined
+                                ? "—"
+                                : r.aum_crore_est.toLocaleString("en-IN", {
+                                    maximumFractionDigits: 2,
+                                  })}
+                            </td>
+                            <td className="num">{fmtPct(r.return_1y_pct)}</td>
+                            <td className="num">{fmtPct(r.return_3y_pct)}</td>
+                            <td className="num">{fmtPct(r.return_5y_pct)}</td>
+                            <td>{r.category ?? "—"}</td>
+                            <td>{r.amc ?? "—"}</td>
+                            <td>
+                              {r.primary_source === "captnemo"
+                                ? "Captnemo"
+                                : r.primary_source === "mfapi.in"
+                                  ? "MFapi"
+                                  : r.primary_source ?? "—"}
+                            </td>
+                            <td className="num">
+                              {r.fallback_used === null
+                                ? "—"
+                                : r.fallback_used
+                                  ? "Yes"
+                                  : "No"}
+                            </td>
+                            <td className="num">
+                              {r.cached_detail === null
+                                ? "—"
+                                : r.cached_detail
+                                  ? "Yes"
+                                  : "No"}
+                            </td>
+                            <td className="num">
+                              {r.nav === null || r.nav === undefined
+                                ? "—"
+                                : `${r.nav.toFixed(4)}${r.nav_date ? ` (${r.nav_date})` : ""}`}
+                            </td>
+                            <td className="compare-err-cell">
+                              {r.error ?? "—"}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </>
       )}
 

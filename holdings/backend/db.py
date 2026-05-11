@@ -5,6 +5,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterator
 
+from holdings.backend.display_text import normalize_fund_display_name
+
 
 def _default_db_path() -> Path:
     root = Path(__file__).resolve().parents[1]
@@ -141,7 +143,7 @@ def _row_to_position(row: sqlite3.Row) -> dict[str, Any]:
     er = row["expense_ratio"] if "expense_ratio" in row.keys() else None
     return {
         "tradingsymbol": row["tradingsymbol"],
-        "fund": row["fund"],
+        "fund": normalize_fund_display_name(row["fund"]),
         "folio": row["folio"],
         "quantity": row["quantity"],
         "average_price": row["average_price"],
@@ -195,7 +197,7 @@ def insert_snapshot(
             (
                 snapshot_id,
                 row.get("tradingsymbol") or "",
-                row.get("fund"),
+                normalize_fund_display_name(row.get("fund")),
                 row.get("folio"),
                 qty,
                 avg,

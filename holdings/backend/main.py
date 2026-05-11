@@ -5,6 +5,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel, Field
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(_REPO_ROOT) not in sys.path:
@@ -25,6 +26,7 @@ from holdings.backend.db import (
     list_snapshots,
 )
 from holdings.backend.mf_expense import build_expense_map, load_expense_overrides
+from holdings.backend.compare_service import run_compare
 from holdings.backend.fund_details_service import get_fund_details
 from holdings.backend.mfapi_client import MFAPIError
 
@@ -117,6 +119,34 @@ def mf_mfapi_details(
             raise HTTPException(status_code=404, detail=str(e)) from e
         except MFAPIError as e:
             raise HTTPException(status_code=502, detail=str(e)) from e
+
+
+class CompareHoldingIn(BaseModel):
+    isin: str = Field(..., min_length=8, max_length=32)
+    fund_name: str = Field(..., min_length=1, max_length=512)
+    weight_pct: float | None = None
+    invested_value: float | None = None
+    current_value: float | None = None
+    expense_ratio_snapshot: float | None = None
+
+
+class CompareRequest(BaseModel):
+    holdings: list[CompareHoldingIn] = Field(..., min_length=1, max_length=40)
+    refresh: bool = False
+
+
+@app.post("/api/mf/compare")
+def mf_compare(req: CompareRequest):
+    """
+    Batch fund facts for selected holdings. Uses the same SQLite cache as mfapi-details
+    with TTL HOLDINGS_COMPARE_CACHE_TTL_SECONDS (default 86400, max 86400 seconds).
+    """
+    payload = [h.model_dump() for h in req.holdings]
+    with get_connection() as conn:
+        try:
+            return run_compare(conn, payload, refresh=req.refresh)
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e)) from e
 
 
 @app.post("/api/mf/snapshot")

@@ -9,6 +9,7 @@ import sqlite3
 
 from holdings.backend import captnemo_client as cn
 from holdings.backend.db import get_mfapi_cache, set_mfapi_cache
+from holdings.backend.display_text import normalize_fund_display_name
 from holdings.backend.mfapi_client import MFAPIError
 from holdings.backend.mfapi_service import (
     _cache_fresh,
@@ -51,16 +52,21 @@ def get_fund_details(
     fund_name: str,
     *,
     bypass_cache: bool = False,
+    cache_ttl_seconds: int | None = None,
 ) -> dict[str, Any]:
     isin_u = isin.strip().upper()
     if not isin_u or not isin_u.startswith("INF"):
         raise ValueError("Invalid or missing ISIN")
 
-    fn = (fund_name or "").strip()
+    fn = normalize_fund_display_name((fund_name or "").strip()) or ""
     if not fn:
         raise ValueError("fund_name is required when MFapi.in fallback may be needed")
 
-    ttl = _cache_ttl_seconds()
+    ttl = (
+        cache_ttl_seconds
+        if cache_ttl_seconds is not None
+        else _cache_ttl_seconds()
+    )
     if not bypass_cache:
         cached = get_mfapi_cache(conn, isin_u)
         if cached:
