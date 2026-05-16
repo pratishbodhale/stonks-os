@@ -3,7 +3,7 @@ version: '3.8'
 services:
   nse-scraper:
     platform: linux/arm64  # ARM64 for Raspberry Pi
-#    image: pratish/nse-scraper
+    image: pratish/nse-scraper:4
     build:
       context: .
       dockerfile: Dockerfile.arm64
@@ -33,21 +33,27 @@ services:
       - seccomp:unconfined
 
     # Resource limits (optional)
-    deploy:
-      resources:
-        limits:
-          cpus: '1'
-          memory: 1G
-        reservations:
-          cpus: '0.5'
-          memory: 500M
+#    deploy:
+#      resources:
+#        limits:
+#          cpus: '1'
+#          memory: 1G
+#        reservations:
+#          cpus: '0.5'
+#          memory: 500M
 
   nse-scraper-server:
+    platform: linux/arm64 # ARM64 for Raspberry Pi
+    image: pratish/nse-scraper-server:7
     build:
       context: .
       dockerfile: Dockerfile.server
     container_name: nse-scraper-server
-
+    ports:
+      - "8082:8000"
     # Mount downloads directory to persist CSV files on host
     volumes:
       - ./downloads:/app/downloads
+      # Mount Docker socket to allow container to control host Docker daemon
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./docker-compose.arm64.yml:/app/docker-compose.yml

@@ -1,0 +1,65 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Downloads
+downloads/*.csv
+downloads/*.png
+
+# Git
+.git/
+.gitignore
+
+# Documentation
+*.md
+!README.md
+
+# Docker
+Dockerfile
+docker-compose.arm64.yml
+.dockerignore
+
+# Logs
+*.log
+
+# MongoDB
+mongodb_data/
+
+# Secrets and local config (never bake into images)
+.env
+.env.*
+.access_token
+*.pem
+*.key
+
+# Other
+.cache/
+.claude/
+.pytest_cache/
+.coverage
+htmlcov/
+holdings/data/*.db
+holdings/frontend/node_modules

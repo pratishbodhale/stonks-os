@@ -46,17 +46,23 @@ def ensure_downloads_dir():
     logger.info(f"Downloads directory: {DOWNLOADS_DIR}")
 
 
-def get_latest_csv_file(before_time: float = None) -> FilePath | None:
+def get_latest_csv_file(before_time: float = None, ticker: str = None) -> FilePath | None:
     """
     Get the latest CSV file from downloads directory.
 
     Args:
         before_time: Only return files created after this timestamp
+        ticker: Optional ticker symbol to filter files by
 
     Returns:
         Path to the latest CSV file or None if no file found
     """
-    csv_files = list(DOWNLOADS_DIR.glob("*.csv"))
+    if ticker:
+        # Filter by ticker pattern
+        pattern = f"{ticker.upper()}*.csv"
+        csv_files = list(DOWNLOADS_DIR.glob(pattern))
+    else:
+        csv_files = list(DOWNLOADS_DIR.glob("*.csv"))
 
     if before_time:
         # Filter files created after the given timestamp
@@ -87,9 +93,11 @@ def run_docker_scraper(ticker: str) -> dict:
     logger.info(f"Starting scraper for ticker: {ticker}")
 
     try:
-        # Run docker-compose command
+        # Run docker compose command (new CLI)
         cmd = [
             "docker-compose",
+            "-f",
+            "docker-compose.yml",
             "run",
             "--rm",
             "nse-scraper",
@@ -127,7 +135,7 @@ def run_docker_scraper(ticker: str) -> dict:
         elapsed = 0
 
         while elapsed < max_wait:
-            csv_file = get_latest_csv_file(before_time=start_time)
+            csv_file = get_latest_csv_file(before_time=start_time, ticker=ticker)
 
             if csv_file and csv_file.exists():
                 logger.info(f"Found downloaded file: {csv_file}")
@@ -251,7 +259,7 @@ async def scrape_ticker_info(
     ticker: str = Path(..., description="Stock ticker symbol (e.g., TATASTEEL)", min_length=1)
 ):
     """
-    Scrape NSE announcements and return file info (without downloading).
+    Get info about the latest downloaded file for a ticker (without triggering scraper).
 
     This is useful for checking if data is available and file details.
 
@@ -259,7 +267,7 @@ async def scrape_ticker_info(
         ticker: Stock ticker symbol
 
     Returns:
-        JSON with file information and download URL
+        JSON with file information, content, and download URL
     """
     logger.info(f"Received info request for ticker: {ticker}")
 
@@ -270,25 +278,48 @@ async def scrape_ticker_info(
             detail="Invalid ticker symbol"
         )
 
-    # Run the scraper
-    result = run_docker_scraper(ticker)
+    ensure_downloads_dir()
 
-    if not result["success"]:
+    # Get the latest file for this ticker
+    ticker_upper = ticker.upper()
+    file_path = get_latest_csv_file(ticker=ticker_upper)
+
+    if not file_path or not file_path.exists():
         raise HTTPException(
-            status_code=500,
-            detail=result.get("error", "Unknown error")
+            status_code=404,
+            detail=f"No existing file found for ticker {ticker_upper}"
         )
 
-    file_path = FilePath(result["file_path"])
+    # Verify ticker is in the filename
+    if ticker_upper not in file_path.name.upper():
+        raise HTTPException(
+            status_code=404,
+            detail=f"File found but ticker {ticker_upper} not present in filename"
+        )
+
+    # Read file content
+    try:
+        with open(file_path, 'r', encoding='utf-8') as f:
+            file_content = f.read()
+    except Exception as e:
+        logger.error(f"Error reading file {file_path}: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error reading file: {str(e)}"
+        )
+
+    file_stat = file_path.stat()
 
     return JSONResponse(content={
         "success": True,
-        "ticker": ticker.upper(),
-        "file_name": result["file_name"],
-        "file_size": result["file_size"],
-        "file_size_mb": round(result["file_size"] / (1024 * 1024), 2),
+        "ticker": ticker_upper,
+        "file_name": file_path.name,
+        "file_size": file_stat.st_size,
+        "file_size_mb": round(file_stat.st_size / (1024 * 1024), 2),
         "download_url": f"/scrape/{ticker}",
-        "timestamp": datetime.now().isoformat()
+        "modified_time": datetime.fromtimestamp(file_stat.st_mtime).isoformat(),
+        "timestamp": datetime.now().isoformat(),
+        "content": file_content
     })
 
 
