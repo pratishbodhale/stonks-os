@@ -33,6 +33,16 @@ export type Snapshot = {
   total_pnl: number;
 };
 
+/** Row from GET /api/mf/snapshots (summary only, no positions). */
+export type SnapshotListItem = {
+  id: number;
+  created_at: string;
+  source: string;
+  total_invested: number;
+  total_current: number;
+  total_pnl: number;
+};
+
 export type MfapiDetails = {
   source: string;
   isin: string;
@@ -122,9 +132,57 @@ export type CompareResponse = {
   cache_ttl_seconds: number;
 };
 
+export type StockOverlapContribution = {
+  fund_name: string;
+  isin: string;
+  weight_in_fund_pct: number;
+  contribution_pct: number;
+};
+
+export type StockOverlapAggRow = {
+  name: string;
+  sector: string | null;
+  effective_portfolio_pct: number;
+  contributions: StockOverlapContribution[];
+};
+
+export type StockOverlapFundRow = {
+  isin: string;
+  fund_name: string;
+  scheme_code: number | null;
+  family_id: number | null;
+  user_weight_pct: number;
+  current_value: number;
+  equities_loaded: number;
+  holdings_month: string | null;
+  error: string | null;
+};
+
+export type StockOverlapResponse = {
+  source: string;
+  base_url: string;
+  holdings_month: string | null;
+  total_current: number;
+  funds_analyzed: number;
+  funds: StockOverlapFundRow[];
+  aggregated_equity: StockOverlapAggRow[];
+  disclaimer: string;
+};
+
 function fmtPct(v: number | null | undefined, digits = 2): string {
   if (v === null || v === undefined) return "—";
   return `${v.toFixed(digits)}%`;
+}
+
+/** Format API ISO timestamps for on-screen display (uses the browser locale). */
+function formatDateTimeDisplay(iso: string | null | undefined): string {
+  if (!iso?.trim()) return "—";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return new Intl.DateTimeFormat(undefined, {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(d);
 }
 
 const inr = new Intl.NumberFormat("en-IN", {
@@ -132,6 +190,90 @@ const inr = new Intl.NumberFormat("en-IN", {
   currency: "INR",
   maximumFractionDigits: 2,
 });
+
+/** Local datetime for filenames (avoids `:` which is invalid on some OS). */
+function portfolioCsvFilename(): string {
+  const d = new Date();
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const dt = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
+  return `mf_portfolio_${dt}.csv`;
+}
+
+function escapeCsvField(value: string | number | null | undefined): string {
+  if (value === null || value === undefined) return "";
+  const s =
+    typeof value === "number" && Number.isFinite(value) ? String(value) : String(value);
+  if (/[",\n\r]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
+  return s;
+}
+
+function buildPortfolioCsv(snapshot: Snapshot, positions: Position[]): string {
+  const totalCur = snapshot.total_current;
+  const header = [
+    "snapshot_id",
+    "snapshot_created_at",
+    "snapshot_source",
+    "isin",
+    "fund",
+    "folio",
+    "quantity",
+    "average_price",
+    "last_price",
+    "pledged_quantity",
+    "invested_value",
+    "current_value",
+    "pnl",
+    "profit_pct",
+    "expense_ratio_pct",
+    "weight_pct_portfolio",
+  ];
+  const lines = [header.join(",")];
+  for (const p of positions) {
+    const w = totalCur > 0 ? (p.current_value / totalCur) * 100 : 0;
+    const rowPnl = p.pnl ?? p.current_value - p.invested_value;
+    const pPct =
+      p.profit_pct ??
+      (p.invested_value > 0 ? ((p.current_value / p.invested_value) - 1) * 100 : null);
+    lines.push(
+      [
+        snapshot.id,
+        snapshot.created_at,
+        snapshot.source,
+        p.tradingsymbol,
+        p.fund ?? "",
+        p.folio ?? "",
+        p.quantity ?? "",
+        p.average_price ?? "",
+        p.last_price ?? "",
+        p.pledged_quantity ?? "",
+        p.invested_value,
+        p.current_value,
+        rowPnl,
+        pPct ?? "",
+        p.expense_ratio ?? "",
+        w,
+      ]
+        .map(escapeCsvField)
+        .join(","),
+    );
+  }
+  return lines.join("\n");
+}
+
+function downloadPortfolioCsv(snapshot: Snapshot, positions: Position[]) {
+  const csv = buildPortfolioCsv(snapshot, positions);
+  const bom = "\uFEFF";
+  const blob = new Blob([bom + csv], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = portfolioCsvFilename();
+  a.rel = "noopener";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
 
 const MAX_PIE_SLICES = 12;
 
@@ -358,7 +500,10 @@ function sortCompareRows(
 
 export default function App() {
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
+  const [snapshotsList, setSnapshotsList] = useState<SnapshotListItem[]>([]);
+  const [pendingSnapshotId, setPendingSnapshotId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
+  const [snapshotSwitching, setSnapshotSwitching] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sortKey, setSortKey] = useState<SortKey>("current_value");
@@ -372,6 +517,10 @@ export default function App() {
   const [compareSortKey, setCompareSortKey] = useState<CompareSortKey>("weight_pct");
   const [compareSortAsc, setCompareSortAsc] = useState(false);
 
+  const [stockOverlap, setStockOverlap] = useState<StockOverlapResponse | null>(null);
+  const [stockOverlapLoading, setStockOverlapLoading] = useState(false);
+  const [stockOverlapErr, setStockOverlapErr] = useState<string | null>(null);
+
   const [detailRow, setDetailRow] = useState<Position | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailErr, setDetailErr] = useState<string | null>(null);
@@ -383,6 +532,11 @@ export default function App() {
     setDetailErr(null);
     setDetailLoading(false);
   }, []);
+
+  useEffect(() => {
+    setStockOverlap(null);
+    setStockOverlapErr(null);
+  }, [snapshot?.id]);
 
   useEffect(() => {
     if (!detailRow) return;
@@ -435,27 +589,90 @@ export default function App() {
     void loadFundDetails(p, false);
   };
 
-  const loadLatest = useCallback(async () => {
+  const loadSnapshotDetail = useCallback(async (id: number) => {
+    const res = await fetch(`/api/mf/snapshots/${id}`);
+    if (!res.ok) {
+      throw new Error(`HTTP ${res.status}`);
+    }
+    const data: Snapshot = await res.json();
+    setSnapshot(data);
+  }, []);
+
+  const loadSnapshotsList = useCallback(async () => {
+    const res = await fetch("/api/mf/snapshots?limit=100");
+    if (!res.ok) {
+      throw new Error(`HTTP ${res.status}`);
+    }
+    const list: SnapshotListItem[] = await res.json();
+    setSnapshotsList(list);
+    return list;
+  }, []);
+
+  const loadInitial = useCallback(async () => {
     setError(null);
     setLoading(true);
     try {
-      const res = await fetch("/api/mf/latest");
-      if (!res.ok) {
-        throw new Error(`HTTP ${res.status}`);
+      const list = await loadSnapshotsList();
+      if (list.length === 0) {
+        setSnapshot(null);
+        return;
       }
-      const data: Snapshot | null = await res.json();
-      setSnapshot(data);
+      await loadSnapshotDetail(list[0].id);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to load snapshot");
+      setError(e instanceof Error ? e.message : "Failed to load snapshots");
       setSnapshot(null);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [loadSnapshotsList, loadSnapshotDetail]);
+
+  const refreshFromDb = useCallback(async () => {
+    setError(null);
+    setLoading(true);
+    const previousId = snapshot?.id;
+    try {
+      const list = await loadSnapshotsList();
+      if (list.length === 0) {
+        setSnapshot(null);
+        return;
+      }
+      const targetId =
+        previousId !== undefined && list.some((s) => s.id === previousId)
+          ? previousId
+          : list[0].id;
+      await loadSnapshotDetail(targetId);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to reload from DB");
+    } finally {
+      setLoading(false);
+    }
+  }, [snapshot?.id, loadSnapshotsList, loadSnapshotDetail]);
+
+  const selectSnapshot = useCallback(
+    async (id: number) => {
+      if (snapshot?.id === id) return;
+      setPendingSnapshotId(id);
+      setSnapshotSwitching(true);
+      setCompareSelected(new Set());
+      setCompareResult(null);
+      setCompareErr(null);
+      closeDetail();
+      setError(null);
+      try {
+        await loadSnapshotDetail(id);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Failed to load snapshot");
+      } finally {
+        setPendingSnapshotId(null);
+        setSnapshotSwitching(false);
+      }
+    },
+    [snapshot?.id, loadSnapshotDetail, closeDetail],
+  );
 
   useEffect(() => {
-    void loadLatest();
-  }, [loadLatest]);
+    void loadInitial();
+  }, [loadInitial]);
 
   const createSnapshot = async () => {
     setError(null);
@@ -479,7 +696,13 @@ export default function App() {
               : text;
         throw new Error(msg || `HTTP ${res.status}`);
       }
-      setSnapshot(body as Snapshot);
+      const newSnap = body as Snapshot;
+      setSnapshot(newSnap);
+      try {
+        await loadSnapshotsList();
+      } catch {
+        /* ignore list refresh errors */
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Snapshot failed");
     } finally {
@@ -509,6 +732,44 @@ export default function App() {
     if (!compareResult?.rows.length) return [];
     return sortCompareRows(compareResult.rows, compareSortKey, compareSortAsc);
   }, [compareResult, compareSortKey, compareSortAsc]);
+
+  const loadStockOverlap = useCallback(async () => {
+    if (!snapshot) return;
+    setStockOverlapErr(null);
+    setStockOverlapLoading(true);
+    try {
+      const positions = snapshot.positions.map((p) => ({
+        tradingsymbol: p.tradingsymbol,
+        fund: p.fund,
+        current_value: p.current_value,
+      }));
+      const res = await fetch("/api/mf/portfolio-stocks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          positions,
+          total_current: snapshot.total_current,
+        }),
+      });
+      const text = await res.text();
+      let body: unknown;
+      try {
+        body = JSON.parse(text);
+      } catch {
+        body = { detail: text };
+      }
+      if (!res.ok) {
+        const d = (body as { detail?: string }).detail;
+        throw new Error(typeof d === "string" ? d : text);
+      }
+      setStockOverlap(body as StockOverlapResponse);
+    } catch (e) {
+      setStockOverlap(null);
+      setStockOverlapErr(e instanceof Error ? e.message : "Analysis failed");
+    } finally {
+      setStockOverlapLoading(false);
+    }
+  }, [snapshot]);
 
   const runCompare = useCallback(
     async (refresh: boolean) => {
@@ -615,9 +876,35 @@ export default function App() {
       <header className="app-header">
         <div>
           <h1>Mutual fund holdings</h1>
+          {snapshotsList.length > 0 && snapshot && (
+            <div className="snapshot-picker">
+              <label htmlFor="snapshot-select" className="snapshot-picker-label">
+                Snapshot
+              </label>
+              <select
+                id="snapshot-select"
+                className="snapshot-select"
+                value={pendingSnapshotId ?? snapshot?.id ?? ""}
+                onChange={(e) => {
+                  const v = Number(e.target.value);
+                  if (Number.isFinite(v)) void selectSnapshot(v);
+                }}
+                disabled={snapshotSwitching}
+                aria-label="Choose snapshot version"
+              >
+                {snapshotsList.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    #{s.id} · {formatDateTimeDisplay(s.created_at)} · {s.source} ·
+                    current {inr.format(s.total_current)}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
           {snapshot && (
-            <p className="meta">
-              Snapshot #{snapshot.id} · {snapshot.created_at} · {snapshot.source}
+            <p className="meta snapshot-meta">
+              Viewing #{snapshot.id} · {snapshot.positions.length} funds ·{" "}
+              {formatDateTimeDisplay(snapshot.created_at)}
             </p>
           )}
         </div>
@@ -625,8 +912,8 @@ export default function App() {
           <button
             type="button"
             className="secondary"
-            onClick={() => void loadLatest()}
-            disabled={loading}
+            onClick={() => void refreshFromDb()}
+            disabled={loading || syncing || snapshotSwitching}
           >
             Reload from DB
           </button>
@@ -762,7 +1049,16 @@ export default function App() {
             </div>
 
             <div className="panel">
-              <h2>Holdings ({snapshot.positions.length})</h2>
+              <div className="panel-heading-row">
+                <h2>Holdings ({snapshot.positions.length})</h2>
+                <button
+                  type="button"
+                  className="secondary portfolio-csv-btn"
+                  onClick={() => downloadPortfolioCsv(snapshot, sortedRows)}
+                >
+                  Download CSV
+                </button>
+              </div>
               <p className="meta table-hint">
                 Click a row for fund details: primary{" "}
                 <a href="https://mf.captnemo.in/">mf.captnemo.in</a> (Kuvera), with{" "}
@@ -838,6 +1134,116 @@ export default function App() {
               </div>
             </div>
           </div>
+
+          <div className="panel overlap-panel">
+            <h2>Underlying equities & overlap</h2>
+            <p className="meta table-hint">
+              Resolve each scheme via{" "}
+              <a href="https://mfdata.in/docs" target="_blank" rel="noreferrer">
+                mfdata.in
+              </a>{" "}
+              (monthly disclosed equity weights), then combine with your allocation to show
+              synthetic exposure. Analyzes your largest positions first (see{" "}
+              <code className="inline-code">HOLDINGS_STOCK_OVERLAP_MAX_FUNDS</code> on the
+              server). Can take a minute and may time out if the upstream API is slow.
+            </p>
+            <div className="overlap-toolbar">
+              <button
+                type="button"
+                className="primary"
+                disabled={stockOverlapLoading}
+                onClick={() => void loadStockOverlap()}
+              >
+                {stockOverlapLoading ? "Analyzing…" : "Run equity overlap analysis"}
+              </button>
+            </div>
+            {stockOverlapErr && (
+              <div className="error overlap-error">{stockOverlapErr}</div>
+            )}
+            {stockOverlap && (
+              <>
+                <p className="meta overlap-meta">
+                  Data: {stockOverlap.source} ·{" "}
+                  <a href={stockOverlap.base_url} target="_blank" rel="noreferrer">
+                    {stockOverlap.base_url}
+                  </a>
+                  {stockOverlap.holdings_month
+                    ? ` · holdings month ${stockOverlap.holdings_month}`
+                    : ""}{" "}
+                  · funds processed {stockOverlap.funds_analyzed}
+                </p>
+                <h3 className="overlap-subh">Per-fund fetch</h3>
+                <div className="panel-table overlap-mini-table">
+                  <table className="holdings-table">
+                    <thead>
+                      <tr>
+                        <th>Fund</th>
+                        <th>ISIN</th>
+                        <th className="num">Your %</th>
+                        <th className="num">Equities</th>
+                        <th>Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {stockOverlap.funds.map((f, i) => (
+                        <tr key={`${f.isin}-${i}`}>
+                          <td className="fund-name">{f.fund_name}</td>
+                          <td className="mono">{f.isin}</td>
+                          <td className="num">{f.user_weight_pct.toFixed(2)}%</td>
+                          <td className="num">{f.equities_loaded}</td>
+                          <td className={f.error ? "overlap-status-err" : ""}>
+                            {f.error ?? (f.family_id ? `family ${f.family_id}` : "—")}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <h3 className="overlap-subh">Aggregated synthetic weights</h3>
+                <p className="meta table-hint">
+                  <strong>Synthetic % of your portfolio</strong> ≈ sum over funds of (your
+                  % in that fund × the stock&apos;s weight inside that fund). Same stock held
+                  by multiple funds appears once with combined %.
+                </p>
+                <div className="panel-table">
+                  <table className="holdings-table">
+                    <thead>
+                      <tr>
+                        <th>Stock / instrument</th>
+                        <th>Sector</th>
+                        <th className="num">Synthetic %</th>
+                        <th>From your funds</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {stockOverlap.aggregated_equity.map((r) => (
+                        <tr key={r.name}>
+                          <td className="fund-name">{r.name}</td>
+                          <td>{r.sector ?? "—"}</td>
+                          <td className="num">{r.effective_portfolio_pct.toFixed(2)}%</td>
+                          <td className="overlap-sources">
+                            {r.contributions
+                              .map(
+                                (c) =>
+                                  `${c.fund_name.slice(0, 28)}${
+                                    c.fund_name.length > 28 ? "…" : ""
+                                  } (${c.weight_in_fund_pct.toFixed(1)}% in fund → ${c.contribution_pct.toFixed(2)}%)`,
+                              )
+                              .join(" · ")}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                {stockOverlap.aggregated_equity.length === 0 && (
+                  <p className="meta">No equity rows returned (debt-only funds or API gaps).</p>
+                )}
+                <p className="meta overlap-disclaimer">{stockOverlap.disclaimer}</p>
+              </>
+            )}
+          </div>
+
             </>
           )}
           {mainTab === "compare" && (
@@ -932,7 +1338,7 @@ export default function App() {
                 <div className="panel compare-table-panel">
                   <h2>Comparison table</h2>
                   <p className="meta table-hint">
-                    As of {compareResult.as_of} · server cache TTL{" "}
+                    As of {formatDateTimeDisplay(compareResult.as_of)} · server cache TTL{" "}
                     {compareResult.cache_ttl_seconds}s (max 1 day)
                   </p>
                   <div className="panel-table compare-table-scroll">
@@ -1031,7 +1437,7 @@ export default function App() {
                             <td className="num">
                               {r.nav === null || r.nav === undefined
                                 ? "—"
-                                : `${r.nav.toFixed(4)}${r.nav_date ? ` (${r.nav_date})` : ""}`}
+                                : `${r.nav.toFixed(4)}${r.nav_date ? ` (${formatDateTimeDisplay(r.nav_date)})` : ""}`}
                             </td>
                             <td className="compare-err-cell">
                               {r.error ?? "—"}

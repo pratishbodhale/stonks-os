@@ -11,6 +11,10 @@
   --shadow-lg: 0 12px 40px rgb(15 23 42 / 9%);
   --radius: 14px;
   --radius-sm: 10px;
+  --table-grid-line: rgb(15 23 42 / 10%);
+  --table-header-bg: #f1f5f9;
+  --table-row-a: rgb(255 255 255 / 0.98);
+  --table-row-b: rgb(241 245 249 / 0.88);
 }
 
 .app {
@@ -26,6 +30,54 @@
   gap: 1rem;
   margin-bottom: 1.5rem;
   min-width: 0;
+}
+
+.snapshot-picker {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+  margin: 0.65rem 0 0.35rem;
+  min-width: 0;
+}
+
+.snapshot-picker-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+  flex-shrink: 0;
+}
+
+.snapshot-select {
+  flex: 1;
+  min-width: min(100%, 280px);
+  max-width: 100%;
+  font-family: inherit;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--ink);
+  padding: 0.45rem 0.65rem;
+  border-radius: 10px;
+  border: 1px solid var(--card-border);
+  background: rgb(255 255 255 / 90%);
+  box-shadow: var(--shadow-sm);
+  cursor: pointer;
+}
+
+.snapshot-select:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.snapshot-select:focus {
+  outline: 2px solid rgb(14 165 233 / 35%);
+  outline-offset: 1px;
+}
+
+.snapshot-meta {
+  margin: 0.35rem 0 0;
 }
 
 .app-header h1 {
@@ -219,6 +271,25 @@ td.num.negative {
   color: var(--ink);
 }
 
+.panel-heading-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.65rem 1rem;
+  margin-bottom: 1rem;
+}
+
+.panel-heading-row h2 {
+  margin: 0;
+  flex: 1;
+  min-width: 0;
+}
+
+.portfolio-csv-btn {
+  flex-shrink: 0;
+}
+
 .table-hint {
   margin-top: -0.5rem;
   margin-bottom: 0.65rem;
@@ -243,7 +314,7 @@ th,
 td {
   text-align: left;
   padding: 0.65rem 0.75rem;
-  border-bottom: 1px solid var(--line);
+  border-bottom: 1px solid var(--table-grid-line);
 }
 
 th {
@@ -253,7 +324,7 @@ th {
   font-size: 0.72rem;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  background: rgb(248 250 252 / 90%);
+  background: var(--table-header-bg);
 }
 
 .holdings-table th {
@@ -273,12 +344,34 @@ td.num {
   font-variant-numeric: tabular-nums;
 }
 
-tbody tr:last-child td {
-  border-bottom: none;
+/* Zebra striping + column rules (holdings + compare) */
+.holdings-table th,
+.holdings-table td,
+.compare-table th,
+.compare-table td {
+  border-right: 1px solid var(--table-grid-line);
 }
 
-tr:hover td {
-  background: rgb(248 250 252 / 85%);
+.holdings-table thead th:first-child,
+.holdings-table tbody td:first-child,
+.compare-table thead th:first-child,
+.compare-table tbody td:first-child {
+  border-left: 1px solid var(--table-grid-line);
+}
+
+.holdings-table tbody tr:nth-child(odd) td,
+.compare-table tbody tr:nth-child(odd) td {
+  background-color: var(--table-row-a);
+}
+
+.holdings-table tbody tr:nth-child(even) td,
+.compare-table tbody tr:nth-child(even) td {
+  background-color: var(--table-row-b);
+}
+
+.holdings-table tbody tr:hover td,
+.compare-table tbody tr:hover td {
+  background-color: rgb(224 242 254 / 0.92);
 }
 
 .fund-name {
@@ -290,11 +383,24 @@ tr:hover td {
 }
 
 .panel-table {
-  overflow-x: auto;
+  /* Vertical scroll + max height so thead can stick; horizontal scroll preserved */
+  overflow: auto;
   -webkit-overflow-scrolling: touch;
+  max-height: min(72vh, 760px);
   margin: 0 -0.35rem;
   padding: 0 0.35rem;
   border-radius: var(--radius-sm);
+  isolation: isolate;
+}
+
+/* Sticky header: stays visible while scrolling the table body */
+.panel-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 6;
+  background: var(--table-header-bg);
+  border-bottom: 1px solid var(--table-grid-line);
+  box-shadow: 0 1px 0 rgb(15 23 42 / 12%);
 }
 
 td.num.pnl-cell {
@@ -303,10 +409,6 @@ td.num.pnl-cell {
 
 tr.row-clickable {
   cursor: pointer;
-}
-
-tr.row-clickable:hover td {
-  background: rgb(239 246 255 / 95%);
 }
 
 .detail-backdrop {
@@ -642,4 +744,59 @@ td.mono {
   overflow-wrap: break-word;
   word-break: normal;
   line-height: 1.35;
+}
+
+.overlap-panel {
+  margin-top: 0.25rem;
+}
+
+.overlap-toolbar {
+  margin: 0.75rem 0 1rem;
+}
+
+.overlap-error {
+  margin-bottom: 0.75rem;
+}
+
+.overlap-meta {
+  margin: 0 0 0.75rem;
+  line-height: 1.45;
+}
+
+.overlap-subh {
+  margin: 1.25rem 0 0.5rem;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.overlap-mini-table {
+  margin-bottom: 0.5rem;
+}
+
+.overlap-status-err {
+  color: #b91c1c;
+  font-size: 0.8rem;
+  word-break: break-word;
+}
+
+.overlap-sources {
+  font-size: 0.78rem;
+  line-height: 1.45;
+  color: #475569;
+  max-width: min(72vw, 52rem);
+}
+
+.overlap-disclaimer {
+  margin-top: 1rem;
+  font-size: 0.78rem;
+  line-height: 1.45;
+}
+
+.inline-code {
+  font-family: ui-monospace, monospace;
+  font-size: 0.8em;
+  background: rgb(241 245 249 / 90%);
+  padding: 0.1rem 0.35rem;
+  border-radius: 6px;
 }

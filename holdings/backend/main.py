@@ -28,7 +28,9 @@ from holdings.backend.db import (
 from holdings.backend.mf_expense import build_expense_map, load_expense_overrides
 from holdings.backend.compare_service import run_compare
 from holdings.backend.fund_details_service import get_fund_details
+from holdings.backend.mfdata_portfolio_client import MfdataError
 from holdings.backend.mfapi_client import MFAPIError
+from holdings.backend.portfolio_stocks_service import run_portfolio_stock_overlap
 
 logger = logging.getLogger(__name__)
 
@@ -147,6 +149,33 @@ def mf_compare(req: CompareRequest):
             return run_compare(conn, payload, refresh=req.refresh)
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e)) from e
+
+
+class PortfolioStockPositionIn(BaseModel):
+    tradingsymbol: str = Field(..., min_length=8, max_length=32)
+    fund: str | None = Field(None, max_length=512)
+    current_value: float = Field(ge=0)
+
+
+class PortfolioStocksRequest(BaseModel):
+    positions: list[PortfolioStockPositionIn] = Field(..., min_length=1, max_length=50)
+    total_current: float = Field(gt=0)
+
+
+@app.post("/api/mf/portfolio-stocks")
+def mf_portfolio_stocks(req: PortfolioStocksRequest):
+    """
+    Resolve each MF (ISIN) via mfdata.in, pull latest disclosed equity sleeve weights,
+    and return synthetic portfolio-level weights (your % in each fund × stock % inside fund).
+    Configure base URL with HOLDINGS_MFDATA_BASE_URL (default https://mfdata.in).
+    """
+    payload = [p.model_dump() for p in req.positions]
+    try:
+        return run_portfolio_stock_overlap(payload, req.total_current)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    except MfdataError as e:
+        raise HTTPException(status_code=502, detail=str(e)) from e
 
 
 @app.post("/api/mf/snapshot")
