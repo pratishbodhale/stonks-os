@@ -8,7 +8,7 @@ A collection of tools for stock market automation and data management.
 |------|------|
 | `kite.py`, `api_server.py`, `nse_selenium_scraper.py` | Root-level Python tools (Kite holdings, NSE scraper, HTTP API) |
 | [`holdings/`](holdings/README.md) | Mutual fund holdings dashboard (Kite + SQLite + React) |
-| [`app/`](app/README.md) | Indian Volume Scanner (Next.js — NIFTY volume spikes, breakouts, push alerts) |
+| [`app/`](app/README.md) | StonksOS Indian Stock Scanner — volume + movers analysis, daily evaluations, AI briefs, push alerts |
 
 ## Tools
 
@@ -271,9 +271,9 @@ cd holdings/frontend && npm install && npm run dev
 
 Requires root `.env` with Kite API credentials and a valid `.access_token` (run `python kite.py` once).
 
-## 5. Indian Volume Scanner
+## 5. StonksOS — Indian Stock Scanner
 
-Next.js app that scans NIFTY 50/200/500 for volume spikes, breakouts, golden crosses, and weekly movers. Persists scan history in SQLite, sends Firebase push notifications on daily cron runs, and optionally enriches with Perplexity/Gemini briefs and Reddit trending cashtags.
+Next.js app for Indian equity market analysis: **volume** signals (spikes, breakouts, golden crosses), **movers** analysis (price change over N sessions), automated **daily evaluations** on NIFTY 500 after market close, AI market/stock briefs (Perplexity/Gemini), Firebase push notifications, and Reddit trending cashtags.
 
 **Documentation:** [`app/README.md`](app/README.md) · Agent/architecture reference: [`app/AGENTS.md`](app/AGENTS.md)
 
@@ -287,5 +287,7 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000). Copy `app/.env.local` from your prior deployment or see `app/README.md` for optional API keys (Firebase, Perplexity, Gemini, Reddit).
 
-**Scheduled scan:** `app/vercel.json` triggers `/api/cron/daily-volume-scan` on weekdays at 11:00 UTC (~16:30 IST).
+**Key routes:** `/` (interactive scanner) · `/runs` (daily evaluation history) · `/runs/[id]` (volume results) · `/runs/weekly/[id]` (movers results + AI brief)
+
+**Scheduled evaluation:** `app/vercel.json` triggers `/api/cron/daily-volume-scan` on weekdays at 11:00 UTC (~16:30 IST) — volume scan + weekly movers + AI market brief + push notification.
 

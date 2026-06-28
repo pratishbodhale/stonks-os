@@ -16,8 +16,8 @@ HTTP layer for scanning, persistence, external integrations, and scheduled jobs.
 | `/api/nifty-index/refresh` | GET | Pull NSE CSV → memory + SQLite `nifty_index_cache` |
 | `/api/nifty-index/status` | GET | Which universes have hydrated NSE constituent lists |
 | `/api/stock-details` | GET | `?symbol=` → full `StockDeepDive` (Yahoo + NSE deals) |
-| `/api/stock-perplexity` | POST | `{ symbol, name? }` → Perplexity Sonar web summary |
-| `/api/stock-gemini` | POST | `{ symbol, name? }` → Gemini web summary (Google Search grounding) |
+| `/api/stock-perplexity` | POST | `{ symbol, name?, strategy? }` → Perplexity Sonar brief; persists to `weekly_mover_ai_briefs` when `strategy=weekly-mover` + snapshot ID |
+| `/api/stock-gemini` | POST | `{ symbol, name?, strategy? }` → Gemini brief; same persistence rules as Perplexity |
 | `/api/market-opportunities` | POST | `{ movers, provider?, weeklyMoverSnapshotId?, ... }` → market brief via Perplexity or Gemini; persists when `weeklyMoverSnapshotId` set |
 | `/api/reddit-trending` | GET | Cashtag rankings from Reddit OAuth multireddit |
 | `/api/fcm-token` | POST | `{ token }` → persist FCM device token |

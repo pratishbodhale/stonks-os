@@ -20,6 +20,8 @@ yahoo.ts ──► signals.ts ──► scanSymbols / buildSignal
          │         └── SMA, golden cross, volume buying, breakout
          │
 stock-deep-dive.ts ──► nse-large-deals.ts
+volume-baseline.ts ── pre-move 20-session volume average (excludes lookback window)
+weekly-movers.ts ──► weekly-mover-sort.ts
 daily-volume-scan.ts ── volume spike filters and constants
 daily-scan.ts ── multi-strategy cron orchestration
 market-brief.ts ── shared Perplexity/Gemini market brief generation
@@ -36,7 +38,7 @@ strip-thinking-tags.ts ── Perplexity response cleanup
 | Module | Responsibility |
 |--------|----------------|
 | `types.ts` | `SymbolSnapshot`, `ScanResult`, `SocialNote` — canonical data shapes |
-| `db.ts` | SQLite (`data/scanner.db`): snapshots, snapshot_rows, weekly_mover_snapshots, weekly_mover_snapshot_rows, fcm_tokens, daily_scan_runs, nifty_index_cache; schema migrations via `ensureColumnExists` |
+| `db.ts` | SQLite (`data/scanner.db`): snapshots, snapshot_rows, weekly_mover_snapshots, weekly_mover_snapshot_rows, weekly_mover_ai_briefs, fcm_tokens, daily_scan_runs, nifty_index_cache; schema migrations via `ensureColumnExists` |
 | `yahoo.ts` | Chart fetch (raw HTTP) + `quoteSummary` via yahoo-finance2; `toYahooTicker()` appends `.NS` |
 | `signals.ts` | Signal engine: vol spike, breakout, volume-buying days, SMA 50/200, golden cross; `scanSymbols()` with concurrency=20 |
 | `nifty-constituents.ts` | NIFTY 50/200/500 embedded JSON + NSE CSV fetch + in-process `symbolListMemory` |
@@ -44,7 +46,9 @@ strip-thinking-tags.ts ── Perplexity response cleanup
 | `daily-volume-scan.ts` | Volume spike constants/filters; `DAILY_VOLUME_SPIKE_THRESHOLD=5`, `DAILY_SCAN_UNIVERSE="500"` |
 | `daily-scan.ts` | Multi-strategy cron orchestration (volume + weekly movers + AI market brief); idempotent per IST date |
 | `market-brief.ts` | Shared market brief generation via Perplexity/Gemini; persists to `weekly_mover_ai_briefs` |
-| `weekly-movers.ts` | Weekly price-move scan; lookback window, gainers/losers filters |
+| `weekly-movers.ts` | Weekly price-move scan; lookback window, gainers/losers filters; `scanWeeklyMovers()` |
+| `weekly-mover-sort.ts` | Shared sort comparators for weekly mover table columns |
+| `volume-baseline.ts` | Pre-move 20-session volume average; excludes recent lookback window from baseline |
 | `market-hours.ts` | `formatIstDateKey`, `isNseTradingDay`, `isAfterNseMarketClose` |
 | `stock-deep-dive.ts` | Rich per-symbol view: quote, chart, fundamentals, news, peers, NSE deals |
 | `nse-large-deals.ts` | NSE cookie bootstrap + large-deals API; filter by symbol |
@@ -65,6 +69,23 @@ strip-thinking-tags.ts ── Perplexity response cleanup
 3. `buildSignal()` computes per-symbol metrics; post-pass fills `industryPe` averages
 4. `saveSnapshot()` writes **full universe** to SQLite (all symbols, not just filtered)
 5. API route applies client filters and returns top `limit` rows sorted by `volumeBuyingDays` → `volSpike` → `priceChangePct`
+
+## Weekly movers pipeline
+
+1. `getIndexSymbolsForScan(universe)` → same constituent resolution as volume scan
+2. `scanWeeklyMovers(symbols, lookbackDays)` → parallel Yahoo fetches
+3. `saveWeeklyMoverSnapshot()` writes **full universe** to `weekly_mover_snapshots` / `weekly_mover_snapshot_rows`
+4. API route applies direction (`gainers`|`losers`|`both`) and `minAbsChangePct` filters
+5. AI briefs (`market-brief.ts`, `stock-analysis-prompts.ts`) persist to `weekly_mover_ai_briefs` when snapshot ID provided
+
+## Daily evaluation pipeline (`daily-scan.ts`)
+
+1. Gate on IST trading day, post-close, idempotency (unless overridden)
+2. Refresh NSE index if stale (30-day interval for NIFTY 500)
+3. Parallel: volume scan + weekly movers (concurrency 15) on NIFTY 500
+4. Record `daily_scan_runs` linking both snapshot IDs with spike/gainer counts
+5. Generate AI market brief if gainers exist
+6. Cron route sends FCM `daily_scan` notification with top spikes and gainers
 
 ## Conventions
 
