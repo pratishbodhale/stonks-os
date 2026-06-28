@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { withBasePath } from "@/lib/base-path";
 import { firebaseVapidKey, firebaseWebConfig } from "@/lib/firebase-client";
 
 export function FcmRegistration() {
@@ -25,7 +26,7 @@ export function FcmRegistration() {
         return;
       }
 
-      const registration = await navigator.serviceWorker.register("/firebase-messaging-sw.js");
+      const registration = await navigator.serviceWorker.register(withBasePath("/firebase-messaging-sw.js"));
       const messaging = getMessaging(app);
       const token = await getToken(messaging, {
         vapidKey: firebaseVapidKey,
@@ -36,7 +37,7 @@ export function FcmRegistration() {
         return;
       }
 
-      await fetch("/api/fcm-token", {
+      await fetch(withBasePath("/api/fcm-token"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ token }),
@@ -49,11 +50,11 @@ export function FcmRegistration() {
           typeof payload.data?.url === "string"
             ? payload.data.url
             : payload.data?.snapshot_id
-              ? `/runs/${payload.data.snapshot_id}`
-              : "/";
+              ? withBasePath(`/runs/${payload.data.snapshot_id}`)
+              : withBasePath("/");
         const notification = new Notification(title, {
           body,
-          icon: "/file.svg",
+          icon: withBasePath("/file.svg"),
           data: payload.data,
         });
         notification.onclick = () => {

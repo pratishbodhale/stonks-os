@@ -7,6 +7,7 @@ import { NotificationSetup } from "@/components/NotificationSetup";
 import { PerplexityMarkdown } from "@/components/PerplexityMarkdown";
 import { WeeklyMoversResultsTable } from "@/components/WeeklyMoversResultsTable";
 import { type NiftyUniverse, NIFTY_UNIVERSE_OPTIONS } from "@/lib/nifty-constituents";
+import { withBasePath } from "@/lib/base-path";
 import type { StockDeepDive } from "@/lib/stock-deep-dive";
 import type { NseDealRow } from "@/lib/nse-large-deals";
 import type { SymbolSnapshot, WeeklyMoverAiBriefMeta, WeeklyMoverRow } from "@/lib/types";
@@ -462,7 +463,7 @@ export default function Home() {
     }
     setMarketBriefError(null);
     setAiBriefError(null);
-    const response = await fetch(`/api/weekly-mover-ai-briefs?id=${briefId}`, { cache: "no-store" });
+    const response = await fetch(withBasePath(`/api/weekly-mover-ai-briefs?id=${briefId}`), { cache: "no-store" });
     const data = (await response.json()) as {
       brief?: {
         id: number;
@@ -504,7 +505,7 @@ export default function Home() {
   }
 
   async function loadSnapshots() {
-    const response = await fetch("/api/snapshots");
+    const response = await fetch(withBasePath("/api/snapshots"));
     if (!response.ok) {
       return;
     }
@@ -513,7 +514,7 @@ export default function Home() {
   }
 
   async function loadWeeklySnapshots() {
-    const response = await fetch("/api/weekly-mover-snapshots");
+    const response = await fetch(withBasePath("/api/weekly-mover-snapshots"));
     if (!response.ok) {
       return;
     }
@@ -522,7 +523,7 @@ export default function Home() {
   }
 
   async function loadAiBriefSnapshots() {
-    const response = await fetch("/api/weekly-mover-ai-briefs");
+    const response = await fetch(withBasePath("/api/weekly-mover-ai-briefs"));
     if (!response.ok) {
       return;
     }
@@ -531,7 +532,7 @@ export default function Home() {
   }
 
   async function refreshSummariesForSnapshot(snapshotId: number) {
-    const response = await fetch(`/api/weekly-mover-ai-briefs?snapshotId=${snapshotId}`, {
+    const response = await fetch(withBasePath(`/api/weekly-mover-ai-briefs?snapshotId=${snapshotId}`), {
       cache: "no-store",
     });
     if (!response.ok) {
@@ -549,7 +550,7 @@ export default function Home() {
 
   async function syncNseIndexStatusFromServer() {
     try {
-      const res = await fetch("/api/nifty-index/status", { cache: "no-store" });
+      const res = await fetch(withBasePath("/api/nifty-index/status"), { cache: "no-store" });
       if (!res.ok) {
         return;
       }
@@ -569,7 +570,7 @@ export default function Home() {
     setIndexRefreshMessage(null);
     try {
       const q = new URLSearchParams({ niftyUniverse });
-      const response = await fetch(`/api/nifty-index/refresh?${q.toString()}`, { cache: "no-store" });
+      const response = await fetch(withBasePath(`/api/nifty-index/refresh?${q.toString()}`), { cache: "no-store" });
       const raw: unknown = await response.json();
       if (!response.ok) {
         const err = raw as { error?: string };
@@ -631,7 +632,7 @@ export default function Home() {
         query.set("niftyUniverse", universeToUse);
       }
 
-      const response = await fetch(`/api/scan?${query.toString()}`, { cache: "no-store" });
+      const response = await fetch(withBasePath(`/api/scan?${query.toString()}`), { cache: "no-store" });
       const data = (await response.json()) as ScanResponse & { error?: string };
       if (!response.ok) {
         throw new Error(data.error ?? "Failed to fetch scanner data");
@@ -717,7 +718,7 @@ export default function Home() {
         query.set("niftyUniverse", universeToUse);
       }
 
-      const response = await fetch(`/api/weekly-movers?${query.toString()}`, { cache: "no-store" });
+      const response = await fetch(withBasePath(`/api/weekly-movers?${query.toString()}`), { cache: "no-store" });
       const data = (await response.json()) as WeeklyMoversResponse;
       if (!response.ok) {
         throw new Error(data.error ?? "Failed to fetch weekly movers");
@@ -771,7 +772,7 @@ export default function Home() {
     setMarketBriefLoading(provider);
     setMarketBriefError(null);
     try {
-      const response = await fetch("/api/market-opportunities", {
+      const response = await fetch(withBasePath("/api/market-opportunities"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -822,7 +823,7 @@ export default function Home() {
     setDeepDiveLoading(true);
     setDeepDiveError(null);
     try {
-      const response = await fetch(`/api/stock-details?symbol=${encodeURIComponent(symbol)}`);
+      const response = await fetch(withBasePath(`/api/stock-details?symbol=${encodeURIComponent(symbol)}`));
       if (!response.ok) {
         throw new Error("Failed to load stock details");
       }
@@ -850,7 +851,7 @@ export default function Home() {
       const companyName =
         deepDive && deepDive.symbol === normalizedSelectedSymbol ? deepDive.name ?? null : null;
       const weeklyRow = weeklyRows.find((r) => r.symbol === normalizedSelectedSymbol);
-      const endpoint = provider === "gemini" ? "/api/stock-gemini" : "/api/stock-perplexity";
+      const endpoint = withBasePath(provider === "gemini" ? "/api/stock-gemini" : "/api/stock-perplexity");
       const response = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -907,7 +908,7 @@ export default function Home() {
     setRedditLoading(true);
     setRedditError(null);
     try {
-      const response = await fetch("/api/reddit-trending?posts=400&limit=25");
+      const response = await fetch(withBasePath("/api/reddit-trending?posts=400&limit=25"));
       const data = (await response.json()) as RedditTrendingResponse;
       if (!response.ok) {
         const extra = data.hint ? ` ${data.hint}` : "";
@@ -934,8 +935,8 @@ export default function Home() {
       await syncNseIndexStatusFromServer();
 
       const [snapRes, weeklySnapRes] = await Promise.all([
-        fetch("/api/snapshots", { cache: "no-store" }),
-        fetch("/api/weekly-mover-snapshots", { cache: "no-store" }),
+        fetch(withBasePath("/api/snapshots"), { cache: "no-store" }),
+        fetch(withBasePath("/api/weekly-mover-snapshots"), { cache: "no-store" }),
       ]);
 
       if (snapRes.ok) {

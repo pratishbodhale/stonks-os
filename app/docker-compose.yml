@@ -3,6 +3,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_BASE_PATH: ${NEXT_PUBLIC_BASE_PATH:-}
     image: ${DOCKER_IMAGE:-ghcr.io/pratishbodhale/stonks-os-app:latest}
     ports:
       - "${PORT:-3000}:3000"

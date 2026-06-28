@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useState } from "react";
+import { withBasePath } from "@/lib/base-path";
 
 type RunStatus = "idle" | "running" | "success" | "skipped" | "error";
 
@@ -86,7 +87,7 @@ export function DailyScanRunButton({
     setResult(null);
 
     try {
-      const response = await fetch("/api/daily-scan/run", {
+      const response = await fetch(withBasePath("/api/daily-scan/run"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

@@ -56,7 +56,7 @@ Manual trigger: **Run daily scan** button or `POST /api/daily-scan/run` (no push
 
 ## Prerequisites
 
-- Node.js 20+
+- Node.js 24+ (Active LTS; required by `yahoo-finance2`; Docker image uses Node 24)
 - Optional: Firebase service account JSON, Perplexity/Gemini/Reddit API keys (see environment variables below)
 
 ## Development (port 3000)

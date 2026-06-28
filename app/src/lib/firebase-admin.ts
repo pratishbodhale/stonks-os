@@ -3,6 +3,7 @@ import path from "node:path";
 import { getApps, initializeApp, cert, type App } from "firebase-admin/app";
 import { getMessaging, type Messaging } from "firebase-admin/messaging";
 import { listFcmTokens, removeFcmTokens } from "@/lib/db";
+import { withBasePath } from "@/lib/base-path";
 import {
   getRunDetailsPath,
   getRunDetailsUrl,
@@ -152,7 +153,7 @@ export async function sendDailyScanNotification(
       ? getRunDetailsPath(payload.volumeSnapshotId)
       : payload.weeklyMoverSnapshotId !== null
         ? getWeeklyRunDetailsPath(payload.weeklyMoverSnapshotId)
-        : "/runs";
+        : withBasePath("/runs");
 
   const response = await client.sendEachForMulticast({
     notification: {
@@ -247,7 +248,7 @@ export async function sendVolumeSpikeNotification(
       type: "daily_volume_scan",
       spike_count: String(payload.spikeCount),
       snapshot_id: payload.snapshotId ? String(payload.snapshotId) : "",
-      url: payload.snapshotId ? getRunDetailsPath(payload.snapshotId) : "/",
+      url: payload.snapshotId ? getRunDetailsPath(payload.snapshotId) : withBasePath("/"),
     },
     webpush: payload.snapshotId
       ? {

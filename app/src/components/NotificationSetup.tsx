@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { withBasePath } from "@/lib/base-path";
 import { firebaseVapidKey, firebaseWebConfig } from "@/lib/firebase-client";
 
 type Status = "unsupported" | "default" | "denied" | "registering" | "ready" | "error";
@@ -49,7 +50,7 @@ export function NotificationSetup() {
       }
 
       const app = getApps().length ? getApps()[0]! : initializeApp(firebaseWebConfig);
-      const registration = await navigator.serviceWorker.register("/firebase-messaging-sw.js");
+      const registration = await navigator.serviceWorker.register(withBasePath("/firebase-messaging-sw.js"));
       const messaging = getMessaging(app);
       const token = await getToken(messaging, {
         vapidKey: firebaseVapidKey,
@@ -62,7 +63,7 @@ export function NotificationSetup() {
         return;
       }
 
-      const response = await fetch("/api/fcm-token", {
+      const response = await fetch(withBasePath("/api/fcm-token"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ token }),
@@ -81,9 +82,9 @@ export function NotificationSetup() {
           typeof payload.data?.url === "string"
             ? payload.data.url
             : payload.data?.snapshot_id
-              ? `/runs/${payload.data.snapshot_id}`
-              : "/";
-        const notification = new Notification(title, { body, icon: "/file.svg", data: payload.data });
+              ? withBasePath(`/runs/${payload.data.snapshot_id}`)
+              : withBasePath("/");
+        const notification = new Notification(title, { body, icon: withBasePath("/file.svg"), data: payload.data });
         notification.onclick = () => {
           window.focus();
           window.location.assign(targetUrl);
