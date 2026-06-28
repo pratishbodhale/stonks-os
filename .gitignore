@@ -3,3 +3,13 @@ holdings/frontend/node_modules
 holdings/frontend/dist
 __pycache__/
 *.py[cod]
+
+# app (Indian Volume Scanner)
+app/node_modules
+app/.next
+app/.env*
+app/firebase-credentials.json
+app/data/scanner.db-wal
+app/data/scanner.db-shm
+app/*.tsbuildinfo
+app/stocks-dashboard.zip

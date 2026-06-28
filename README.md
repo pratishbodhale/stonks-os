@@ -2,6 +2,14 @@
 
 A collection of tools for stock market automation and data management.
 
+## Repository layout
+
+| Path | Tool |
+|------|------|
+| `kite.py`, `api_server.py`, `nse_selenium_scraper.py` | Root-level Python tools (Kite holdings, NSE scraper, HTTP API) |
+| [`holdings/`](holdings/README.md) | Mutual fund holdings dashboard (Kite + SQLite + React) |
+| [`app/`](app/README.md) | Indian Volume Scanner (Next.js — NIFTY volume spikes, breakouts, push alerts) |
+
 ## Tools
 
 ## 1. Fetch Stock Holdings from Kite
@@ -241,4 +249,43 @@ curl http://localhost:8000/scrape/RELIANCE/info
 # Health check
 curl http://localhost:8000/health
 ```
+
+## 4. Mutual Fund Holdings
+
+Fetches MF holdings via Kite Connect, stores snapshots in SQLite, and serves a React dashboard with fund comparison and equity overlap analysis.
+
+**Documentation:** [`holdings/README.md`](holdings/README.md)
+
+**Quick start** (from repository root):
+
+```bash
+pip install -r holdings/requirements.txt
+uvicorn holdings.backend.main:app --reload --port 8010
+```
+
+In another terminal:
+
+```bash
+cd holdings/frontend && npm install && npm run dev
+```
+
+Requires root `.env` with Kite API credentials and a valid `.access_token` (run `python kite.py` once).
+
+## 5. Indian Volume Scanner
+
+Next.js app that scans NIFTY 50/200/500 for volume spikes, breakouts, golden crosses, and weekly movers. Persists scan history in SQLite, sends Firebase push notifications on daily cron runs, and optionally enriches with Perplexity/Gemini briefs and Reddit trending cashtags.
+
+**Documentation:** [`app/README.md`](app/README.md) · Agent/architecture reference: [`app/AGENTS.md`](app/AGENTS.md)
+
+**Quick start** (from `app/`):
+
+```bash
+cd app
+npm install
+npm run dev
+```
+
+Open [http://localhost:3000](http://localhost:3000). Copy `app/.env.local` from your prior deployment or see `app/README.md` for optional API keys (Firebase, Perplexity, Gemini, Reddit).
+
+**Scheduled scan:** `app/vercel.json` triggers `/api/cron/daily-volume-scan` on weekdays at 11:00 UTC (~16:30 IST).
 

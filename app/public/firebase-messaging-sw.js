@@ -1,0 +1,57 @@
+/* eslint-disable no-undef */
+importScripts("https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js");
+importScripts("https://www.gstatic.com/firebasejs/10.7.1/firebase-messaging-compat.js");
+
+firebase.initializeApp({
+  apiKey: "",
+  authDomain: "",
+  projectId: "",
+  storageBucket: "",
+  messagingSenderId: "",
+  appId: "",
+});
+
+const messaging = firebase.messaging();
+
+function resolveNotificationUrl(data) {
+  if (data?.url) {
+    if (data.url.startsWith("http")) {
+      return data.url;
+    }
+    return new URL(data.url, self.location.origin).href;
+  }
+  if (data?.snapshot_id) {
+    return new URL(`/runs/${data.snapshot_id}`, self.location.origin).href;
+  }
+  return new URL("/", self.location.origin).href;
+}
+
+messaging.onBackgroundMessage((payload) => {
+  const title = payload.notification?.title ?? "Volume scan alert";
+  const options = {
+    body: payload.notification?.body ?? "",
+    icon: "/file.svg",
+    data: payload.data,
+    tag: `volume-scan-${payload.data?.snapshot_id || "daily"}`,
+  };
+  self.registration.showNotification(title, options);
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const targetUrl = resolveNotificationUrl(event.notification.data);
+  event.waitUntil(
+    clients.matchAll({ type: "window", includeUncontrolled: true }).then((windowClients) => {
+      for (const client of windowClients) {
+        if (client.url.startsWith(self.location.origin) && "focus" in client) {
+          client.navigate(targetUrl);
+          return client.focus();
+        }
+      }
+      if (clients.openWindow) {
+        return clients.openWindow(targetUrl);
+      }
+      return undefined;
+    }),
+  );
+});
