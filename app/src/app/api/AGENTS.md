@@ -22,7 +22,7 @@ HTTP layer for scanning, persistence, external integrations, and scheduled jobs.
 | `/api/reddit-trending` | GET | Cashtag rankings from Reddit OAuth multireddit |
 | `/api/fcm-token` | POST | `{ token }` → persist FCM device token |
 | `/api/daily-scan/run` | POST | Manual NIFTY 500 daily scan from UI (`force` + `skipMarketCheck` default true; no push by default) |
-| `/api/cron/daily-volume-scan` | GET | Scheduled NIFTY 500 scan + FCM push (`maxDuration=300`) |
+| `/api/cron/daily-volume-scan` | GET | Manual/ops trigger for NIFTY 500 scan + FCM push (`maxDuration=300`); scheduled runs use in-process cron |
 | `/api/notes` | GET/POST | JSON-file CRUD for `SocialNote` — **no UI consumer** |
 
 ## `/api/scan` query parameters
@@ -53,6 +53,7 @@ HTTP layer for scanning, persistence, external integrations, and scheduled jobs.
 ## `/api/cron/daily-volume-scan`
 
 - Auth: `Authorization: Bearer ${CRON_SECRET}` (unauthenticated in dev if `CRON_SECRET` unset)
+- Scheduled runs: in-process cron (`daily-scan-scheduler.ts`) at 16:30 IST weekdays — not Vercel
 - Skips: non-trading day, before NSE close (15:30 IST), already ran today (IST date key)
 - Overrides: `?force=true`, `?skipMarketCheck=true`
 - Flow: `runDailyScan()` (volume + weekly movers + AI market brief) → `sendDailyScanNotification()`

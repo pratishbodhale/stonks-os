@@ -289,5 +289,5 @@ Open [http://localhost:3000](http://localhost:3000). Copy `app/.env.local` from 
 
 **Key routes:** `/` (interactive scanner) · `/runs` (daily evaluation history) · `/runs/[id]` (volume results) · `/runs/weekly/[id]` (movers results + AI brief)
 
-**Scheduled evaluation:** `app/vercel.json` triggers `/api/cron/daily-volume-scan` on weekdays at 11:00 UTC (~16:30 IST) — volume scan + weekly movers + AI market brief + push notification.
+**Scheduled evaluation:** In-process cron in the Next.js server runs the daily evaluation on weekdays at 16:30 IST — volume scan + weekly movers + AI market brief + push notification. Set `DAILY_SCAN_CRON_ENABLED=false` to disable.
 

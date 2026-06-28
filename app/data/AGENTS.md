@@ -11,6 +11,8 @@ Local persistence directory created at runtime by `src/lib/db.ts`. Holds the SQL
 | `scanner.db` (+ `-wal`, `-shm`) | SQLite: scan snapshots, rows, AI briefs, FCM tokens, daily runs, NSE index cache |
 | `social-notes.json` | Created by `/api/notes` if used (not in repo by default) |
 
+Paths are resolved by `src/lib/data-path.ts`: `DATA_DIR` (default `data/` under cwd) and optional `DATABASE_PATH`.
+
 ## Schema (via `db.ts`)
 
 | Table | Contents |
@@ -26,7 +28,7 @@ Local persistence directory created at runtime by `src/lib/db.ts`. Holds the SQL
 
 ## Conventions
 
-- DB path: `path.join(process.cwd(), "data", "scanner.db")`
+- DB path: `getDatabasePath()` in `src/lib/data-path.ts` — `DATA_DIR` env or `data/` under cwd; override file with `DATABASE_PATH`
 - WAL journal mode — `-wal` and `-shm` files appear during active use; do not commit these sidecars
 - Do not manually edit the DB while the dev server is running
 - **Deployment caveat**: SQLite is file-based; works on persistent Node runtime but is not ideal for ephemeral serverless without an external database

@@ -18,7 +18,7 @@ Next.js 16 full-stack app for Indian equity market analysis. Two interactive sca
 | **Daily run history** | `/runs` — last 60 IST dates with links to both snapshot types |
 | **Volume run detail** | `/runs/[snapshotId]` — spikes ≥5× (daily threshold) |
 | **Movers run detail** | `/runs/weekly/[snapshotId]` — gainers ≥3% + AI market brief |
-| **Scheduled job** | `/api/cron/daily-volume-scan` via `vercel.json` |
+| **Scheduled job** | In-process cron (`daily-scan-scheduler.ts`) — weekdays 16:30 IST; also `GET /api/cron/daily-volume-scan` for manual triggers |
 | **Manual daily job** | `/api/daily-scan/run` (UI button) |
 
 **Branding:** layout metadata uses **StonksOS**; home H1 is **Indian Stock Scanner**. Nav: **Scanner** | **Daily runs** (`SiteHeader`).
@@ -56,7 +56,10 @@ Weekly price-move scan (`weekly-movers.ts`): period change %, volume context, PE
 
 | Variable | Purpose |
 |----------|---------|
-| `CRON_SECRET` | Bearer token for `/api/cron/daily-volume-scan` (open in dev if unset) |
+| `DATA_DIR` | Directory for SQLite DB and JSON sidecars (default: `data/` under cwd; Docker default: `/app/data`) |
+| `DATABASE_PATH` | Full path to SQLite file (default: `$DATA_DIR/scanner.db`) |
+| `CRON_SECRET` | Bearer token for manual `GET /api/cron/daily-volume-scan` (open in dev if unset) |
+| `DAILY_SCAN_CRON_ENABLED` | Enable in-process scheduler (`true`/`false`; default: on in production, off in dev) |
 | `FIREBASE_SERVICE_ACCOUNT_JSON` / `FIREBASE_CREDENTIALS` | Server-side FCM |
 | `NEXT_PUBLIC_FIREBASE_*`, `NEXT_PUBLIC_FIREBASE_VAPID_KEY` | Client FCM (defaults baked in) |
 | `NEXT_PUBLIC_APP_URL` | Absolute URLs in push notifications |
@@ -66,7 +69,7 @@ Weekly price-move scan (`weekly-movers.ts`): period change %, volume context, PE
 
 ## Scheduled jobs
 
-`vercel.json` runs `/api/cron/daily-volume-scan` at `0 11 * * 1-5` (11:00 UTC ≈ 16:30 IST on weekdays). Orchestrated by `executeDailyScanJob()` in `daily-scan.ts`:
+The server starts an in-process scheduler (`daily-scan-scheduler.ts` via `instrumentation.ts`) on weekdays at **16:30 IST** when `DAILY_SCAN_CRON_ENABLED` is on (default in production). Orchestrated by `executeDailyScanJob()` in `daily-scan.ts`:
 
 - Gates: NSE trading day, post-close (15:30 IST), idempotency per IST date (overridable via `?force=true`, `?skipMarketCheck=true`)
 - Scans NIFTY 500: volume signals + weekly movers in parallel

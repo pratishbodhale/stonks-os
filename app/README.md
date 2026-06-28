@@ -42,7 +42,7 @@ Links from each run:
 
 ### Automated daily evaluation
 
-`vercel.json` cron hits `/api/cron/daily-volume-scan` at `0 11 * * 1-5` (11:00 UTC ≈ 16:30 IST, weekdays).
+An in-process cron scheduler runs `executeDailyScanJob()` on weekdays at **16:30 IST** (enabled by default in production; set `DAILY_SCAN_CRON_ENABLED=false` to disable). `GET /api/cron/daily-volume-scan` remains available for manual triggers with `CRON_SECRET`.
 
 Each successful run (NIFTY **500**, after 15:30 IST, once per IST date):
 
@@ -76,7 +76,8 @@ Create `app/.env.local` (never commit secrets):
 
 | Variable | Purpose |
 |----------|---------|
-| `CRON_SECRET` | Bearer token for `/api/cron/daily-volume-scan` (open in dev if unset) |
+| `CRON_SECRET` | Bearer token for manual `GET /api/cron/daily-volume-scan` (open in dev if unset) |
+| `DAILY_SCAN_CRON_ENABLED` | In-process daily scheduler (`true`/`false`; default: on in production, off in dev) |
 | `FIREBASE_SERVICE_ACCOUNT_JSON` / `FIREBASE_CREDENTIALS` | Server-side FCM |
 | `NEXT_PUBLIC_FIREBASE_*`, `NEXT_PUBLIC_FIREBASE_VAPID_KEY` | Client FCM (defaults baked in) |
 | `NEXT_PUBLIC_APP_URL` | Absolute URLs in push notifications |
@@ -95,7 +96,66 @@ npm run build
 npm start
 ```
 
-Deploy on Vercel with the cron schedule in `vercel.json`, or run on any Node host with a persistent filesystem for `data/scanner.db`.
+Run on any Node host or Docker with a persistent filesystem for `data/scanner.db`. The daily scan scheduler starts automatically in production.
+
+## Docker
+
+Build and run locally from **`app/`**:
+
+```bash
+cp .env.example .env   # add secrets as needed
+docker compose up --build -d
+```
+
+Open [http://localhost:3000](http://localhost:3000). SQLite data is stored in the named volume `scanner-data` (mounted at `/app/data` inside the container).
+
+### Environment variables (container)
+
+| Variable | Default | Purpose |
+|----------|---------|---------|
+| `DATA_DIR` | `/app/data` | Directory for SQLite and JSON sidecars — mount a volume here |
+| `DAILY_SCAN_CRON_ENABLED` | `true` | Weekday 16:30 IST daily scan scheduler |
+| `DATABASE_PATH` | `$DATA_DIR/scanner.db` | Override full DB file path |
+| `PORT` | `3000` | Host port mapping in `docker-compose.yml` |
+
+All other app env vars from the table above are read at runtime via `.env` or `docker compose` `environment` — they are not baked into the image.
+
+### Push to a registry
+
+```bash
+export DOCKER_IMAGE=ghcr.io/<user>/stonks-scanner:latest   # or docker.io/<user>/stonks-scanner:latest
+
+docker build -t "$DOCKER_IMAGE" .
+docker push "$DOCKER_IMAGE"
+```
+
+### Pull and run on a remote server
+
+On the server, copy `docker-compose.yml` and `.env`, then:
+
+```bash
+export DOCKER_IMAGE=ghcr.io/<user>/stonks-scanner:latest
+
+docker pull "$DOCKER_IMAGE"
+docker compose up -d
+```
+
+To bind a host directory instead of a named volume, replace the `volumes` entry in `docker-compose.yml`:
+
+```yaml
+volumes:
+  - /var/lib/stonks-scanner:/app/data
+```
+
+### Manual daily scan trigger
+
+To run the job on demand (e.g. testing), use the UI **Run daily scan** button, `POST /api/daily-scan/run`, or:
+
+```bash
+curl -fsS -H "Authorization: Bearer $CRON_SECRET" http://localhost:3000/api/cron/daily-volume-scan
+```
+
+Optional overrides: `?force=true`, `?skipMarketCheck=true`.
 
 ## External services
 

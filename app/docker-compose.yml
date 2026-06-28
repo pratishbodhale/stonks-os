@@ -1,0 +1,21 @@
+services:
+  scanner:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: ${DOCKER_IMAGE:-ghcr.io/pratishbodhale/stonks-os-app:latest}
+    ports:
+      - "${PORT:-3000}:3000"
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      DATA_DIR: /app/data
+      DAILY_SCAN_CRON_ENABLED: ${DAILY_SCAN_CRON_ENABLED:-true}
+      NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
+    volumes:
+      - scanner-data:/app/data
+    restart: unless-stopped
+
+volumes:
+  scanner-data:

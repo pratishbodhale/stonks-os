@@ -1,10 +1,9 @@
 import { NextResponse } from "next/server";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
-import path from "node:path";
+import { getDataDir, getSocialNotesPath } from "@/lib/data-path";
 import type { SocialNote } from "@/lib/types";
 
-const DATA_DIR = path.join(process.cwd(), "data");
-const NOTES_FILE = path.join(DATA_DIR, "social-notes.json");
+const NOTES_FILE = getSocialNotesPath();
 
 async function readNotes(): Promise<SocialNote[]> {
   try {
@@ -17,7 +16,7 @@ async function readNotes(): Promise<SocialNote[]> {
 }
 
 async function saveNotes(notes: SocialNote[]) {
-  await mkdir(DATA_DIR, { recursive: true });
+  await mkdir(getDataDir(), { recursive: true });
   await writeFile(NOTES_FILE, JSON.stringify(notes, null, 2), "utf8");
 }
 

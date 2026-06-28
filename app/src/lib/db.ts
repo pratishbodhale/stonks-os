@@ -1,6 +1,6 @@
 import Database from "better-sqlite3";
 import { mkdirSync } from "node:fs";
-import path from "node:path";
+import { getDataDir, getDatabasePath } from "@/lib/data-path";
 import type { SymbolSnapshot, WeeklyMoverAiBrief, WeeklyMoverAiBriefMeta, WeeklyMoverRow } from "@/lib/types";
 
 type SnapshotRowRecord = {
@@ -27,10 +27,10 @@ type SnapshotRowRecord = {
   days_since_golden_cross?: number | null;
 };
 
-const dataDir = path.join(process.cwd(), "data");
+const dataDir = getDataDir();
 mkdirSync(dataDir, { recursive: true });
 
-const sqlite = new Database(path.join(dataDir, "scanner.db"));
+const sqlite = new Database(getDatabasePath());
 sqlite.pragma("journal_mode = WAL");
 sqlite.exec(`
   CREATE TABLE IF NOT EXISTS snapshots (

@@ -24,6 +24,7 @@ volume-baseline.ts ── pre-move 20-session volume average (excludes lookback 
 weekly-movers.ts ──► weekly-mover-sort.ts
 daily-volume-scan.ts ── volume spike filters and constants
 daily-scan.ts ── multi-strategy cron orchestration
+daily-scan-scheduler.ts ── in-process node-cron (16:30 IST weekdays)
 market-brief.ts ── shared Perplexity/Gemini market brief generation
 market-hours.ts ── IST trading day / post-close
 firebase-admin.ts ──► db (tokens), stock-links
@@ -45,6 +46,7 @@ strip-thinking-tags.ts ── Perplexity response cleanup
 | `nifty-index-server.ts` | **Server-only** (`import "server-only"`): DB hydrate, persist NSE refresh, stale refresh (30-day for NIFTY 500) |
 | `daily-volume-scan.ts` | Volume spike constants/filters; `DAILY_VOLUME_SPIKE_THRESHOLD=5`, `DAILY_SCAN_UNIVERSE="500"` |
 | `daily-scan.ts` | Multi-strategy cron orchestration (volume + weekly movers + AI market brief); idempotent per IST date |
+| `daily-scan-scheduler.ts` | In-process `node-cron` scheduler; started from `instrumentation.ts` |
 | `market-brief.ts` | Shared market brief generation via Perplexity/Gemini; persists to `weekly_mover_ai_briefs` |
 | `weekly-movers.ts` | Weekly price-move scan; lookback window, gainers/losers filters; `scanWeeklyMovers()` |
 | `weekly-mover-sort.ts` | Shared sort comparators for weekly mover table columns |
