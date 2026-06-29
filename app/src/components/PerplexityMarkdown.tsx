@@ -11,7 +11,9 @@ export function PerplexityMarkdown({ markdown, className }: Props) {
   const cleaned = normalizeAiMarkdown(markdown);
 
   return (
-    <div className={`block w-full overflow-visible ${className ?? ""}`.trim()}>
+    <div
+      className={`block w-full min-w-0 overflow-visible break-words [overflow-wrap:anywhere] ${className ?? ""}`.trim()}
+    >
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         skipHtml
@@ -34,7 +36,7 @@ export function PerplexityMarkdown({ markdown, className }: Props) {
               href={href}
               target="_blank"
               rel="noopener noreferrer"
-              className="font-medium text-violet-700 underline decoration-violet-300 underline-offset-2 hover:text-violet-900"
+              className="break-all font-medium text-violet-700 underline decoration-violet-300 underline-offset-2 hover:text-violet-900"
             >
               {children}
             </a>

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { executeDailyScanJob } from "@/lib/daily-scan";
+import type { AiAnalysisProvider } from "@/lib/market-brief";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -34,7 +35,7 @@ export async function POST(request: Request) {
     typeof body.sendNotification === "boolean"
       ? String(body.sendNotification)
       : searchParams.get("sendNotification"),
-    false,
+    true,
   );
   const includeAiAnalysis = parseBoolean(
     typeof body.includeAiAnalysis === "boolean"
@@ -42,12 +43,12 @@ export async function POST(request: Request) {
       : searchParams.get("includeAiAnalysis"),
     true,
   );
-  const aiProvider =
-    body.aiProvider === "gemini" || searchParams.get("aiProvider") === "gemini"
-      ? "gemini"
-      : body.aiProvider === "perplexity" || searchParams.get("aiProvider") === "perplexity"
-        ? "perplexity"
-        : undefined;
+  const aiProvider: AiAnalysisProvider | undefined =
+    body.aiProvider === "perplexity" || searchParams.get("aiProvider") === "perplexity"
+      ? "perplexity"
+      : body.aiProvider === "gemini" || searchParams.get("aiProvider") === "gemini"
+        ? "gemini"
+        : "gemini";
 
   try {
     const result = await executeDailyScanJob({

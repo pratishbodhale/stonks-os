@@ -93,7 +93,6 @@ export function DailyScanRunButton({
         body: JSON.stringify({
           force: true,
           skipMarketCheck: true,
-          sendNotification: false,
         }),
       });
       const data = (await response.json()) as DailyScanRunResponse;

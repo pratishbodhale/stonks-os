@@ -32,7 +32,7 @@ The home page (~2400 lines) is a self-contained client dashboard. Default strate
 
 ### Global header actions
 - `NotificationSetup` — FCM opt-in
-- `DailyScanRunButton` — manual NIFTY 500 daily evaluation (no push by default)
+- `DailyScanRunButton` — manual NIFTY 500 daily evaluation (push by default)
 
 ### Strategy tabs
 1. **Volume analysis** — vol spike, breakout, volume-buying days, golden cross filters; inline results table

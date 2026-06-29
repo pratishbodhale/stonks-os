@@ -8,6 +8,7 @@ import { PerplexityMarkdown } from "@/components/PerplexityMarkdown";
 import { WeeklyMoversResultsTable } from "@/components/WeeklyMoversResultsTable";
 import { type NiftyUniverse, NIFTY_UNIVERSE_OPTIONS } from "@/lib/nifty-constituents";
 import { withBasePath } from "@/lib/base-path";
+import { readApiErrorMessage } from "@/lib/ai-error";
 import type { StockDeepDive } from "@/lib/stock-deep-dive";
 import type { NseDealRow } from "@/lib/nse-large-deals";
 import type { SymbolSnapshot, WeeklyMoverAiBriefMeta, WeeklyMoverRow } from "@/lib/types";
@@ -788,16 +789,13 @@ export default function Home() {
           direction: "gainers",
         }),
       });
+      if (!response.ok) {
+        throw new Error(await readApiErrorMessage(response));
+      }
       const data = (await response.json()) as {
         text?: string;
-        error?: string;
-        detail?: string;
         aiBriefId?: number | null;
       };
-      if (!response.ok) {
-        const extra = data.detail ? ` ${data.detail}` : "";
-        throw new Error(`${data.error ?? "Request failed"}${extra}`);
-      }
       if (data.aiBriefId && data.text) {
         cacheAiBrief({
           id: data.aiBriefId,
@@ -806,6 +804,7 @@ export default function Home() {
           provider,
           text: data.text,
         });
+        setExpandedAiBriefId(data.aiBriefId);
       }
       if (activeWeeklySnapshotId) {
         await refreshSummariesForSnapshot(activeWeeklySnapshotId);
@@ -868,16 +867,13 @@ export default function Home() {
             : {}),
         }),
       });
+      if (!response.ok) {
+        throw new Error(await readApiErrorMessage(response));
+      }
       const data = (await response.json()) as {
         text?: string;
-        error?: string;
-        detail?: string;
         aiBriefId?: number | null;
       };
-      if (!response.ok) {
-        const extra = data.detail ? ` ${data.detail}` : "";
-        throw new Error(`${data.error ?? "Request failed"}${extra}`);
-      }
       if (strategy === "weekly-movers" && data.aiBriefId && data.text) {
         cacheAiBrief({
           id: data.aiBriefId,
@@ -886,6 +882,7 @@ export default function Home() {
           provider,
           text: data.text,
         });
+        setExpandedAiBriefId(data.aiBriefId);
         if (activeWeeklySnapshotId) {
           await refreshSummariesForSnapshot(activeWeeklySnapshotId);
         }
@@ -1621,7 +1618,7 @@ export default function Home() {
                 automatically.
               </p>
               <div className="flex flex-wrap gap-2">
-                {(["perplexity", "gemini"] as const).map((provider) => (
+                {(["gemini", "perplexity"] as const).map((provider) => (
                   <button
                     key={provider}
                     type="button"
@@ -1924,7 +1921,7 @@ export default function Home() {
               >
                 {deepDiveLoading ? "Loading…" : "Reload details"}
               </button>
-              {(["perplexity", "gemini"] as const).map((provider) => (
+              {(["gemini", "perplexity"] as const).map((provider) => (
                 <button
                   key={provider}
                   type="button"

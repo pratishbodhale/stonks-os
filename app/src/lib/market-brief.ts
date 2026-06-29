@@ -36,17 +36,17 @@ export function resolveAiAnalysisProvider(
   const hasPerplexity = Boolean(process.env.PERPLEXITY_API_KEY?.trim());
   const hasGemini = Boolean(process.env.GEMINI_API_KEY?.trim());
 
-  if (preferred === "perplexity" && hasPerplexity) {
-    return "perplexity";
-  }
   if (preferred === "gemini" && hasGemini) {
     return "gemini";
   }
-  if (hasPerplexity) {
+  if (preferred === "perplexity" && hasPerplexity) {
     return "perplexity";
   }
   if (hasGemini) {
     return "gemini";
+  }
+  if (hasPerplexity) {
+    return "perplexity";
   }
   return null;
 }
@@ -63,7 +63,7 @@ async function generateMarketBriefText(
   });
 
   if (provider === "gemini") {
-    return generateGeminiBrief({ system, user, maxOutputTokens: 1800, temperature: 0.3 });
+    return generateGeminiBrief({ system, user, maxOutputTokens: 4096, temperature: 0.3 });
   }
 
   return generatePerplexityBrief({

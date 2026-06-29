@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { aiProviderHttpStatus } from "@/lib/ai-error";
 import { saveWeeklyMoverAiBrief } from "@/lib/db";
 import { generateGeminiBrief } from "@/lib/gemini";
 import { buildStockBriefPrompt } from "@/lib/stock-analysis-prompts";
@@ -55,8 +56,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ text, model, provider: "gemini", aiBriefId });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Gemini request failed";
-    const detail = error instanceof Error && "detail" in error ? String(error.detail) : undefined;
-    const status = message.includes("not configured") ? 503 : 502;
-    return NextResponse.json({ error: message, detail }, { status });
+    return NextResponse.json({ error: message }, { status: aiProviderHttpStatus(error) });
   }
 }

@@ -1,0 +1,16 @@
+services:
+  scanner:
+    image: ghcr.io/pratishbodhale/stonks-os-app:latest
+    ports:
+      - "3002:3000"
+    env_file:
+      - .env
+    environment:
+      PORT: "3000"
+      DATA_DIR: /app/data
+      FIREBASE_CREDENTIALS: /app/firebase-credentials.json
+      DAILY_SCAN_CRON_ENABLED: "true"
+    volumes:
+      - ./data:/app/data
+      - ./firebase-credentials.json:/app/firebase-credentials.json:ro
+    restart: unless-stopped

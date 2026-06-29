@@ -243,7 +243,9 @@ export async function executeDailyScanJob(options?: {
   let aiBrief: DailyScanAiBriefSummary | null = null;
   if (includeAiAnalysis) {
     try {
-      aiBrief = await runDailyScanAiAnalysis(scan, { provider: options?.aiProvider });
+      aiBrief = await runDailyScanAiAnalysis(scan, {
+        provider: options?.aiProvider ?? "gemini",
+      });
     } catch (error) {
       console.error(
         "Daily scan AI analysis failed:",

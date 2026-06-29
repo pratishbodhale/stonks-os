@@ -7,6 +7,8 @@ import {
 import { DAILY_VOLUME_SPIKE_THRESHOLD, DAILY_SCAN_UNIVERSE } from "@/lib/daily-volume-scan";
 import { listDailyScanRuns } from "@/lib/db";
 
+export const dynamic = "force-dynamic";
+
 export const metadata = {
   title: "Daily scan runs",
   description: "History of automated NIFTY 500 daily scans (volume analysis and weekly movers)",

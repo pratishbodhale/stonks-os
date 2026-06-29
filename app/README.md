@@ -49,10 +49,10 @@ Each successful run (NIFTY **500**, after 15:30 IST, once per IST date):
 1. Refreshes NSE index constituents if stale
 2. Parallel Yahoo scans: volume signals + weekly movers
 3. Persists full universes to SQLite
-4. Generates an AI **market brief** when gainers exist (Perplexity preferred, else Gemini)
+4. Generates an AI **market brief** when gainers exist (Gemini preferred, else Perplexity)
 5. Sends Firebase push notification summarizing top spikes and gainers
 
-Manual trigger: **Run daily scan** button or `POST /api/daily-scan/run` (no push by default).
+Manual trigger: **Run daily scan** button or `POST /api/daily-scan/run` (sends push by default; pass `sendNotification=false` to skip).
 
 ## Prerequisites
 

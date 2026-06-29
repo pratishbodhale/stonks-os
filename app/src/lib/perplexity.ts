@@ -1,3 +1,4 @@
+import { formatUpstreamAiError } from "@/lib/ai-error";
 import { stripThinkingTags } from "@/lib/strip-thinking-tags";
 
 const PERPLEXITY_CHAT_URL = "https://api.perplexity.ai/v1/sonar";
@@ -51,10 +52,9 @@ export async function generatePerplexityBrief(
 
   const rawText = await upstream.text();
   if (!upstream.ok) {
-    const err = new Error(`Perplexity request failed (${upstream.status})`) as Error & {
-      detail?: string;
-    };
-    err.detail = rawText.slice(0, 800);
+    const { message, httpStatus } = formatUpstreamAiError("Perplexity", upstream.status, rawText);
+    const err = new Error(message) as Error & { httpStatus?: number };
+    err.httpStatus = httpStatus;
     throw err;
   }
 

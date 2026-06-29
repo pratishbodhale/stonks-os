@@ -1,8 +1,10 @@
+import { formatUpstreamAiError } from "@/lib/ai-error";
 import { stripThinkingTags } from "@/lib/strip-thinking-tags";
 
 const GEMINI_API_BASE = "https://generativelanguage.googleapis.com/v1beta";
 const DEFAULT_MODEL = "gemini-2.5-flash";
 
+type GeminiPart = { text?: string; thought?: boolean };
 type GeminiGroundingChunk = { web?: { uri?: string; title?: string } };
 type GeminiGroundingSupport = {
   segment?: { startIndex?: number; endIndex?: number };
@@ -10,7 +12,8 @@ type GeminiGroundingSupport = {
 };
 type GeminiCompletion = {
   candidates?: Array<{
-    content?: { parts?: Array<{ text?: string }> };
+    content?: { parts?: GeminiPart[] };
+    finishReason?: string;
     groundingMetadata?: {
       groundingChunks?: GeminiGroundingChunk[];
       groundingSupports?: GeminiGroundingSupport[];
@@ -64,6 +67,17 @@ function addInlineCitations(text: string, candidate: GeminiCompletion["candidate
   return out;
 }
 
+function extractVisibleGeminiText(parts: GeminiPart[] | undefined): string {
+  if (!parts?.length) {
+    return "";
+  }
+  return parts
+    .filter((part) => !part.thought)
+    .map((part) => part.text ?? "")
+    .join("")
+    .trim();
+}
+
 export async function generateGeminiBrief(
   options: GeminiBriefOptions,
 ): Promise<{ text: string; model: string }> {
@@ -96,17 +110,21 @@ export async function generateGeminiBrief(
       tools: [{ google_search: {} }],
       generationConfig: {
         temperature: options.temperature ?? 0.25,
-        maxOutputTokens: options.maxOutputTokens ?? 1400,
+        maxOutputTokens: options.maxOutputTokens ?? 4096,
+        // Briefs are summarization, not deep reasoning — thinking tokens share the
+        // maxOutputTokens budget and can truncate the visible answer mid-sentence.
+        thinkingConfig: {
+          thinkingBudget: 0,
+        },
       },
     }),
   });
 
   const rawText = await upstream.text();
   if (!upstream.ok) {
-    const err = new Error(`Gemini request failed (${upstream.status})`) as Error & {
-      detail?: string;
-    };
-    err.detail = rawText.slice(0, 800);
+    const { message, httpStatus } = formatUpstreamAiError("Gemini", upstream.status, rawText);
+    const err = new Error(message) as Error & { httpStatus?: number };
+    err.httpStatus = httpStatus;
     throw err;
   }
 
@@ -119,9 +137,14 @@ export async function generateGeminiBrief(
     throw err;
   }
 
-  const raw = data.candidates?.[0]?.content?.parts?.map((p) => p.text ?? "").join("").trim();
+  const candidate = data.candidates?.[0];
+  let raw = extractVisibleGeminiText(candidate?.content?.parts);
   if (!raw) {
     throw new Error("Empty response from Gemini");
+  }
+
+  if (candidate?.finishReason === "MAX_TOKENS") {
+    raw = `${raw}\n\n---\n*Summary was cut off at the token limit. Regenerate for a complete brief.*`;
   }
 
   const withCitations = addInlineCitations(raw, data.candidates);

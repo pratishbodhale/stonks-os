@@ -21,7 +21,7 @@ HTTP layer for scanning, persistence, external integrations, and scheduled jobs.
 | `/api/market-opportunities` | POST | `{ movers, provider?, weeklyMoverSnapshotId?, ... }` → market brief via Perplexity or Gemini; persists when `weeklyMoverSnapshotId` set |
 | `/api/reddit-trending` | GET | Cashtag rankings from Reddit OAuth multireddit |
 | `/api/fcm-token` | POST | `{ token }` → persist FCM device token |
-| `/api/daily-scan/run` | POST | Manual NIFTY 500 daily scan from UI (`force` + `skipMarketCheck` default true; no push by default) |
+| `/api/daily-scan/run` | POST | Manual NIFTY 500 daily scan from UI (`force` + `skipMarketCheck` default true; push by default) |
 | `/api/cron/daily-volume-scan` | GET | Manual/ops trigger for NIFTY 500 scan + FCM push (`maxDuration=300`); scheduled runs use in-process cron |
 | `/api/notes` | GET/POST | JSON-file CRUD for `SocialNote` — **no UI consumer** |
 
@@ -47,8 +47,8 @@ HTTP layer for scanning, persistence, external integrations, and scheduled jobs.
 ## `/api/daily-scan/run`
 
 - **POST** — trigger from UI; no cron auth required
-- Body/query: `force` (default `true`), `skipMarketCheck` (default `true`), `sendNotification` (default `false`), `includeAiAnalysis` (default `true`), `aiProvider` (`perplexity`|`gemini`, optional)
-- Flow: `executeDailyScanJob()` — volume + weekly movers + AI market brief; push only when `sendNotification=true`
+- Body/query: `force` (default `true`), `skipMarketCheck` (default `true`), `sendNotification` (default `true`), `includeAiAnalysis` (default `true`), `aiProvider` (`perplexity`|`gemini`, optional)
+- Flow: `executeDailyScanJob()` — volume + weekly movers + AI market brief; push when `sendNotification=true` (default)
 
 ## `/api/cron/daily-volume-scan`
 

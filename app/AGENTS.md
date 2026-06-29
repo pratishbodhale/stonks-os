@@ -63,6 +63,7 @@ Weekly price-move scan (`weekly-movers.ts`): period change %, volume context, PE
 | `FIREBASE_SERVICE_ACCOUNT_JSON` / `FIREBASE_CREDENTIALS` | Server-side FCM |
 | `NEXT_PUBLIC_FIREBASE_*`, `NEXT_PUBLIC_FIREBASE_VAPID_KEY` | Client FCM (defaults baked in) |
 | `NEXT_PUBLIC_APP_URL` | Absolute URLs in push notifications |
+| `NEXT_PUBLIC_BASE_PATH` | URL prefix when served under a subpath (e.g. `/stonksos`). **Build-time only** — passed as Docker `build-arg` / set when running `next build`; runtime `.env` alone does not update client JS or `next.config` routing. See [deploy-rpi skill](../.cursor/skills/deploy-rpi/SKILL.md). |
 | `PERPLEXITY_API_KEY`, `PERPLEXITY_MODEL` | Stock and market briefs (Perplexity Sonar) |
 | `GEMINI_API_KEY`, `GEMINI_MODEL` | Stock and market briefs (Gemini + Google Search grounding) |
 | `REDDIT_CLIENT_ID`, `REDDIT_CLIENT_SECRET`, `REDDIT_USER_AGENT` | Reddit trending cashtags |
@@ -83,15 +84,28 @@ The server starts an in-process scheduler (`daily-scan-scheduler.ts` via `instru
 - Indian tickers are bare symbols (`RELIANCE`); Yahoo layer appends `.NS`
 - IST market logic lives in `src/lib/market-hours.ts`
 - Delegate logic to `src/lib/` — keep routes and pages thin
-- Never commit `firebase-credentials.json`, `.env*`, or other secrets
+- Never commit `firebase-credentials.json`, `.env*`, `public/firebase-messaging-sw.js`, or other secrets — the service worker is generated at build from `NEXT_PUBLIC_FIREBASE_*`
 - Manual dashboard scans default NIFTY **200**; automated daily cron uses **500**
 - Home page default strategy is **movers** (`weekly-movers`)
+
+## Raspberry Pi deploy
+
+Home-lab Pi: `pratishbodhale@raspberrypi.local`, public URL `https://orbits.pratish.dev/stonksos`, container port **3002**.
+
+**Critical:** Pi/production image must be built with `NEXT_PUBLIC_BASE_PATH=/stonksos`. Without it, the public URL 404s while `http://raspberrypi.local:3002/` may still work. Full workflow: [`.cursor/skills/deploy-rpi/SKILL.md`](../.cursor/skills/deploy-rpi/SKILL.md).
+
+```bash
+# from repo root
+.cursor/skills/deploy-rpi/scripts/deploy.sh
+```
+
+Do not commit Pi `.env`, passwords, or `firebase-credentials.json`.
 
 ## Git commits
 
 When creating commits for the StonksOS monorepo:
 
-- **Never commit secrets** — exclude `.env`, `.env.*`, `firebase-credentials.json`, API keys, tokens, service-account JSON, and any file containing credentials or personal data.
+- **Never commit secrets** — exclude `.env`, `.env.*`, `firebase-credentials.json`, `public/firebase-messaging-sw.js` (generated at build from env), API keys, tokens, service-account JSON, and any file containing credentials or personal data.
 - Before `git add`, review `git status` and `git diff`; unstaged paths that look like env files, credential dumps, or archives (e.g. `*.zip`) should stay out of the commit unless explicitly requested.
 - Do not commit local SQLite WAL sidecars (`scanner.db-wal`, `scanner.db-shm`) or other ephemeral runtime artifacts unless the user explicitly asks to version database state.
 - If the user asks to commit and a staged file might contain secrets, warn them and omit it from the commit.
